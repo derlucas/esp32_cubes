@@ -11,6 +11,8 @@
 #define COMMAND_BLACKOUT    0x01
 #define COMMAND_COLOR       0x02
 #define OTA_WAIT_TIMEOUT    100     // in 0.1s increments -> 10s
+#define WS2812_PIN          14
+#define WS2812_COUNT        14
 
 #ifdef USE_PWM
 #define LED_PIN_WHITE   14
@@ -52,7 +54,6 @@ const uint8_t gamma_green[] = {
   170,171,173,175,176,178,180,181,183,185,186,188,190,192,193,195,
   197,199,200,202,204,206,207,209,211,213,215,217,218,220,222,224,
   226,228,230,232,233,235,237,239,241,243,245,247,249,251,253,255 };
-
 #endif
 
 uint32_t commandcounter = 0;
@@ -82,9 +83,7 @@ boolean startupFadeDone = false;
 boolean blackedout = false;
 
 #ifdef USE_WS2812
-NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> strip(PixelCount, PixelPin);
-const uint16_t PixelCount = 14;
-const uint8_t PixelPin = 16;
+NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> strip(WS2812_COUNT, WS2812_PIN);
 #endif
 
 // we use Animations and RgbColor from NeoPixelBus also for our PWM implementation
@@ -129,7 +128,7 @@ void blackout() {
     animations.StopAll();
 
 #ifdef USE_WS2812
-    for (uint16_t pixel = 0; pixel < PixelCount; pixel++) {
+    for (uint16_t pixel = 0; pixel < WS2812_COUNT; pixel++) {
         strip.SetPixelColor(pixel, black);
     }
     strip.Show();
@@ -145,7 +144,7 @@ void blackout() {
 
 void setColor(RgbColor color) {
 #ifdef USE_WS2812
-    for (uint16_t pixel = 0; pixel < PixelCount; pixel++) {
+    for (uint16_t pixel = 0; pixel < WS2812_COUNT; pixel++) {
         strip.SetPixelColor(pixel, color);
     }
 
