@@ -77,6 +77,7 @@ void setup() {
 
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
+    Serial.printf("wifi channel: %d\n", WiFi.channel());
 
 
 

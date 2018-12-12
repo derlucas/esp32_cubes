@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <esp_now.h>
 #include <WiFi.h>
+#include <ArduinoOTA.h>
 #include <NeoPixelBus.h>
 #include <NeoPixelAnimator.h>
 #include <Preferences.h>
@@ -9,6 +10,7 @@
 #define CUBE_ADDR_BCAST     0xff
 #define COMMAND_BLACKOUT    0x01
 #define COMMAND_COLOR       0x02
+#define OTA_WAIT_TIMEOUT    100     // in 0.1s increments -> 10s
 
 #ifdef USE_PWM
 #define LED_PIN_WHITE   14
@@ -64,7 +66,16 @@ struct ESP_NOW_FOO {
     uint8_t payload[4];
 };
 
+enum OTA_MODE {
+    NONE,
+    SEARCHING,
+    WAITING,
+    UPDATING,
+    FAILED,
+    DONE
+} otaMode = NONE;
 
+uint16_t otaWaitCounter;
 uint16_t uid;
 Preferences prefs;
 boolean startupFadeDone = false;
@@ -284,41 +295,24 @@ uint16_t askNumber(const char *prefName, RgbColor *flashcolor) {
     return uid;
 }
 
+void checkOTA() {
+    otaMode = SEARCHING;
+    Serial.println("looking for OTA WiFi...");
 
-void setup() {
+    setColor(RgbColor(100,100,0));
+    // WARNING: to allow ESP-NOW work, this WiFi must be on Channel 1
+    WiFi.begin("esp32-wuerfel-ota", "geheim323232");
 
-#ifdef USE_PWM
-    initPWM();
-#endif
-#ifdef USE_WS2812
-    // this resets all the neopixels to an off state
-    strip.Begin();
-#endif
-
-    prefs.begin("blink", false);
-    Serial.begin(115200);
-    Serial.setTimeout(5000);
-    while (!Serial); // wait for serial attach
-
-    Serial.println();
-    Serial.println("Initializing...");
-
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    Serial.print("MAC:");
-    Serial.println(WiFi.macAddress());
-    Serial.flush();
-
-
-    setColor(black);
-
-    if (esp_now_init() != 0) {
-        Serial.println("err:esp-now");
-        ESP.restart();
-        delay(1);
+    while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+        Serial.println("no OTA WiFi found, proceed normal boot");
+        otaMode = NONE;
+        return;
     }
 
+    otaMode = WAITING;
+}
 
+void normalBoot() {
     uid = prefs.getUShort("uid", 0);
 
     if (uid != 0) {
@@ -351,21 +345,117 @@ void setup() {
         Serial.printf("my new uid: %d\n", uid);
     }
 
+
+    WiFi.disconnect();
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+    Serial.printf("wifi channel: %d\n", WiFi.channel());
+
+    if (esp_now_init() != 0) {
+        Serial.println("err:esp-now");
+        ESP.restart();
+        delay(1);
+    }
+
     esp_now_register_recv_cb(on_receive_data);
     startupFade();
+}
 
+void setup() {
+
+#ifdef USE_PWM
+    initPWM();
+#endif
+#ifdef USE_WS2812
+    // this resets all the neopixels to an off state
+    strip.Begin();
+#endif
+
+    prefs.begin("blink", false);
+    Serial.begin(115200);
+    Serial.setTimeout(5000);
+    while (!Serial); // wait for serial attach
+
+    Serial.println();
+    Serial.println("Initializing...");
+
+
+    checkOTA();
+    setColor(black);
+
+    if (otaMode == WAITING) {
+        Serial.println("connected to OTA WiFi. Waiting for firmware...");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+
+        ArduinoOTA
+                .onStart([]() {
+                    otaMode = UPDATING;
+                    String type;
+                    if (ArduinoOTA.getCommand() == U_FLASH)
+                        type = "sketch";
+                    else // U_SPIFFS
+                        type = "filesystem";
+
+                    // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+                    Serial.println("Start updating " + type);
+                })
+                .onEnd([]() {
+                    Serial.println("\nEnd");
+                })
+                .onProgress([](unsigned int progress, unsigned int total) {
+                    int prog = (progress / (total / 100));
+                    Serial.printf("Progress: %u%%\r", prog);
+                    setColor( (prog % 2 == 0) ? blue : red );
+                })
+                .onError([](ota_error_t error) {
+                    Serial.printf("Error[%u]: ", error);
+                    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+                    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+                    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+                    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+                    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+                });
+
+        ArduinoOTA.begin();
+    } else {
+        normalBoot();
+    }
 }
 
 
 void loop() {
 
-    if (animations.IsAnimating()) {
-        animations.UpdateAnimations();
+    if (otaMode != NONE) {
+        ArduinoOTA.handle();
+
+        if(otaMode == WAITING) {
+            static long mil = millis();
+            static boolean huehott = false;
+
+            if(millis() - mil > 100) {
+                setColor(huehott ? blue : black);
+                huehott = !huehott;
+                mil = millis();
+
+                otaWaitCounter++;
+                if(otaWaitCounter >= OTA_WAIT_TIMEOUT) {
+                    Serial.println("OTA wait timeout, proceeding normal boot");
+                    otaMode = NONE;
+                    normalBoot();
+                }
+            }
+        }
+
+    } else {
+
+        if (animations.IsAnimating()) {
+            animations.UpdateAnimations();
 
 #ifdef USE_WS2812
-        strip.Show();
+            strip.Show();
 #endif
-
+        }
     }
 }
 
