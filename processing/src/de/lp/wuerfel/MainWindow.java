@@ -15,7 +15,7 @@ import static controlP5.ControlP5Constants.ACTION_RELEASE;
 
 public class MainWindow extends PApplet {
 
-    private static int REFRESH_TIMEOUT = 1000;
+    private static int REFRESH_TIMEOUT = 500;
     private static int MAX_COLOR_HISTORY = 12;
 
     private boolean blackout = false;
