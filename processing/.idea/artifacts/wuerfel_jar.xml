@@ -1,0 +1,12 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="wuerfel:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/wuerfel_jar</output-path>
+    <root id="archive" name="wuerfel.jar">
+      <element id="module-output" name="wuerfel" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/libs/controlP5.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/libs/core.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/libs/jssc.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/libs/serial.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>

@@ -11,6 +11,7 @@ import processing.serial.Serial;
 import java.util.*;
 
 import static controlP5.ControlP5Constants.ACTION_RELEASE;
+import static java.awt.event.KeyEvent.*;
 
 
 public class MainWindow extends PApplet {
@@ -19,6 +20,7 @@ public class MainWindow extends PApplet {
     private static int MAX_COLOR_HISTORY = 12;
 
     private boolean blackout = false;
+    private boolean clearAfterColor = false;
     private int wheelcolor = color(50);
 
     private Serial gateway;
@@ -30,6 +32,12 @@ public class MainWindow extends PApplet {
     private boolean doRefreshing = true;
 
     private List<Bang> lastColors = new ArrayList<>();
+    private final int[] presetColors = new int[]{
+            color(255), color(0), color(125),
+            color(255, 0, 0), color(0, 255, 0), color(0, 0, 255),
+            color(255, 255, 0), color(255, 0, 255), color(0, 255, 255),
+            color(138, 0, 247), color(40, 111, 0), color(255, 0, 141),
+    };
 
 
     public void settings() {
@@ -43,29 +51,48 @@ public class MainWindow extends PApplet {
         gateway = new Serial(this, "/dev/ttyUSB0", 115200);
         cp5 = new ControlP5(this);
 
-        cp5.addSlider("overallbrightness").setPosition(10, 10).setSize(200, 40).setRange(0, 1.0f).setValue(0.5f);
-        cp5.addSlider("fadetime").setPosition(10, 50).setSize(200, 40).setRange(0, 255).setValue(0);
+        presetList = cp5.addScrollableList("presetlist").setPosition(10, 10).setSize(200, 750)
+                .setBarHeight(0).setItemHeight(30).setType(ScrollableList.LIST).setBarVisible(false);
+
+        cp5.addToggle("setBlackout").setPosition(820, 10).setSize(40, 40).setValue(false).setLabel("Blackout");
+        cp5.addToggle("sendEnable").setPosition(880, 10).setSize(40, 40).setValue(false).setLabel("Enable");
 
 
-        cp5.addToggle("setBlackout").setPosition(320, 10).setSize(40, 40).setValue(false).setLabel("Blackout");
-        cp5.addToggle("sendEnable").setPosition(380, 10).setSize(40, 40).setValue(false).setLabel("Enable");
+        matrix = new MyMatrix(cp5, "myMatrix", 5, 10, 230, 10, 200, 400);
+        int y = 230 - 40;
+
+        cp5.addBang("mod3Selection").setPosition(230, 430).setSize(40, 40).setLabel("MOD3 (7)").addListener(controlEvent -> matrix.selModulo(3));
+        cp5.addBang("mod4Selection").setPosition(280, 430).setSize(40, 40).setLabel("MOD4 (8)").addListener(controlEvent -> matrix.selModulo(4));
+        cp5.addBang("mod5Selection").setPosition(330, 430).setSize(40, 40).setLabel("MOD5 (9)").addListener(controlEvent -> matrix.selModulo(5));
+
+        cp5.addBang("mod6Selection").setPosition(230, 490).setSize(40, 40).setLabel("MOD6 (4)").addListener(controlEvent -> matrix.selModulo(6));
+        cp5.addBang("mod7Selection").setPosition(280, 490).setSize(40, 40).setLabel("MOD7 (5)").addListener(controlEvent -> matrix.selModulo(7));
+
+        cp5.addBang("oddSelection").setPosition(230, 550).setSize(40, 40).setLabel("Odd (1)").addListener(controlEvent -> matrix.odd());
+        cp5.addBang("evenSelection").setPosition(280, 550).setSize(40, 40).setLabel("Even (2)").addListener(controlEvent -> matrix.even());
+        cp5.addBang("randSelection").setPosition(330, 550).setSize(40, 40).setLabel("rnd (3)").addListener(controlEvent -> matrix.random());
+
+        cp5.addBang("clearSelection").setPosition(230, 610).setSize(40, 40).setLabel("none (0)").addListener(controlEvent -> matrix.clear());
+        cp5.addBang("allSelection").setPosition(280, 610).setSize(40, 40).setLabel("All (,)").addListener(controlEvent -> matrix.all());
+
+        cp5.addToggle("clearAfterColor").setPosition(230, 680).setSize(40, 40).setLabel("Clear after Color (+)");
 
 
-        presetList = cp5.addScrollableList("presetlist").setPosition(10, 280).setSize(200, 500)
-                .setBarHeight(30).setItemHeight(30).setType(ScrollableList.LIST).setBarVisible(true);
-
-
-        matrix = new MyMatrix(cp5, "myMatrix", 5, 10, 220, 280, 200, 400);
-        cp5.addBang("clearSelection").setPosition(220, 230).setSize(30, 30).setLabel("Clear").addListener(controlEvent -> matrix.clear());
-        cp5.addBang("oddSelection").setPosition(260, 230).setSize(30, 30).setLabel("Odd").addListener(controlEvent -> matrix.odd());
-        cp5.addBang("evenSelection").setPosition(300, 230).setSize(30, 30).setLabel("Even").addListener(controlEvent -> matrix.even());
-        cp5.addBang("allSelection").setPosition(340, 230).setSize(30, 30).setLabel("All").addListener(controlEvent -> matrix.all());
-
+        cp5.addLabel("recent colors:", 470, 610);
         for (int i = 0; i < MAX_COLOR_HISTORY; i++) {
-            lastColors.add(cp5.addBang("colorX" + i).setPosition(468 + i * 42, 550).setSize(40, 40).setId(i).setLabelVisible(false));
+            lastColors.add(cp5.addBang("colorX" + i).setPosition(470 + i * 43, 620).setSize(40, 40).setLabelVisible(false));
         }
 
-        ColorWheel wheel = cp5.addColorWheel("wheelcolor", 470, 10, 500).setRGB(color(128, 0, 255)).setLabelVisible(false);
+        cp5.addLabel("base colors (F1 - F12):", 470, 680);
+        for (int i = 0; i < MAX_COLOR_HISTORY; i++) {
+            lastColors.add(cp5.addBang("colorX_p" + i).setPosition(470 + i * 43, 690).setSize(40, 40).setLabelVisible(false)
+                    .setColorForeground(presetColors[i]).setColorActive(presetColors[i]));
+        }
+
+        cp5.addBang("randomColor").setPosition(470, 740).setSize(40, 40).setLabel("Random (*)");
+
+        cp5.addSlider("fadetime").setPosition(470, 10).setSize(200, 40).setRange(0, 255).setValue(0);
+        MyColorWheel wheel = new MyColorWheel(cp5, cp5.getDefaultTab(), "wheelcolor", 470, 70, 520, 520).setRGB(color(128, 0, 255)).setLabelVisible(false);
         wheel.addCallback(theEvent -> {
             if (theEvent.getAction() == ACTION_RELEASE) {
 
@@ -86,19 +113,23 @@ public class MainWindow extends PApplet {
                         cube.setLastUpdateMillis(millis());
                     });
                 }
+
+                if (clearAfterColor) {
+                    matrix.clear();
+                }
             }
         });
 
 
         PFont font = createFont("Verdana", 14);
-        presetNameField = cp5.addTextfield("presetName").setPosition(10, 790).setSize(120, 25).setFont(font).setFocus(true);
+        presetNameField = cp5.addTextfield("presetName").setPosition(10, 790).setSize(200, 30);
 
-        cp5.addBang("presetupdate").setPosition(10, 830).setSize(40, 30).setLabel("Pre.Updt");
-        cp5.addBang("presetnew").setPosition(60, 830).setSize(40, 30).setLabel("Pre.New").setColorForeground(color(0,120,0));
-        cp5.addBang("presetdel").setPosition(110, 830).setSize(40, 30).setLabel("Pre.Del").setColorForeground(color(120, 0, 0));
+        cp5.addBang("presetupdate").setPosition(10, 840).setSize(40, 30).setLabel("Pre.Updt");
+        cp5.addBang("presetnew").setPosition(60, 840).setSize(40, 30).setLabel("Pre.New").setColorForeground(color(0, 120, 0));
+        cp5.addBang("presetdel").setPosition(110, 840).setSize(40, 30).setLabel("Pre.Del").setColorForeground(color(120, 0, 0));
 
-        cp5.addBang("presetprev").setPosition(220, 830).setSize(40, 30).setLabel("Pre.Prev");
-        cp5.addBang("presetnext").setPosition(270, 830).setSize(40, 30).setLabel("Pre.Next");
+        cp5.addBang("presetprev").setPosition(220, 840).setSize(40, 30).setLabel("Pre.Prev");
+        cp5.addBang("presetnext").setPosition(270, 840).setSize(40, 30).setLabel("Pre.Next");
 
 
         surface.setTitle("Bjarneswuerfel");
@@ -127,6 +158,11 @@ public class MainWindow extends PApplet {
         }
     }
 
+    public void randomColor() {
+        Random random = new Random(millis());
+        applyColorAndSend(color(random.nextInt(255),random.nextInt(255),random.nextInt(255)));
+    }
+
     public void setBlackout(boolean bo) {      // function for the ControlP5 Toggle
         if (this.blackout != bo) {
             gateway.write("A," + (bo ? "1" : "0") + '\n');
@@ -148,9 +184,6 @@ public class MainWindow extends PApplet {
 
         stroke(255);
 
-        text("#" + hex(wheelcolor, 6), 470, 520);
-
-
         // periodically refresh the cubes to make sure all is set as we wanted to
         if (!blackout && doRefreshing) {
             matrix.getCubeList().forEach(cube -> {
@@ -165,47 +198,96 @@ public class MainWindow extends PApplet {
     }
 
     public void presetprev() {
-        int presetInt = (int)presetList.getValue();
-        if (presetInt>0) {
-            presetList.setValue(presetInt-1);
-            presetLoad(presetInt-1);
+        int presetInt = (int) presetList.getValue();
+        if (presetInt > 0) {
+            presetList.setValue(presetInt - 1);
+            presetLoad(presetInt - 1);
         }
     }
 
     public void presetnext() {
-        int presetInt = (int)presetList.getValue();
-        if (presetInt<presetList.getItems().size()) {
-            presetList.setValue(presetInt+1);
-            presetLoad(presetInt+1);
+        int presetInt = (int) presetList.getValue();
+        if (presetInt < presetList.getItems().size()) {
+            presetList.setValue(presetInt + 1);
+            presetLoad(presetInt + 1);
         }
     }
 
     public void keyPressed() {
+
+        if(presetNameField.isFocus()) {
+            return;
+        }
+
         if (keyCode == RIGHT) {
             presetnext();
-        } else if(keyCode == LEFT) {
+        } else if (keyCode == LEFT) {
             presetprev();
+        } else if (keyCode == VK_NUMPAD0) {
+            matrix.clear();
+        } else if (keyCode == VK_SEPARATOR) {
+            matrix.all();
+        } else if (keyCode == VK_NUMPAD1) {
+            matrix.odd();
+        } else if (keyCode == VK_NUMPAD2) {
+            matrix.even();
+        } else if (keyCode == VK_NUMPAD3) {
+            matrix.random();
+        } else if (keyCode == VK_NUMPAD4) {
+            matrix.selModulo(6);
+        } else if (keyCode == VK_NUMPAD5) {
+            matrix.selModulo(7);
+        } else if (keyCode == VK_NUMPAD6) {
+            // frei
+        } else if (keyCode == VK_NUMPAD7) {
+            matrix.selModulo(3);
+        } else if (keyCode == VK_NUMPAD8) {
+            matrix.selModulo(4);
+        } else if (keyCode == VK_NUMPAD9) {
+            matrix.selModulo(5);
+        } else if(keyCode == VK_ADD) {
+            Toggle tog = (Toggle) cp5.get("clearAfterColor");
+            tog.setValue(!tog.getBooleanValue());
+        } else if(keyCode == VK_MULTIPLY) {
+            randomColor();
+        }
+
+        if(keyCode >= VK_F1 && keyCode <= VK_F12) {
+            applyColorAndSend(presetColors[keyCode-VK_F1]);
+        }
+
+    }
+
+    private void applyColorAndSend(int color) {
+        matrix.setColorToSelection(color);
+
+        if (sendEnable) {
+            matrix.getCubeList().stream().filter(Cube::isSelected).forEach(cube -> {
+                writeCube(cube);
+                cube.setLastUpdateMillis(millis());
+            });
+        }
+
+        if (clearAfterColor) {
+            matrix.clear();
         }
     }
 
     public void controlEvent(ControlEvent e) {
-        if (e.getController().getName().contentEquals("wheelcolor")) {
 
-            matrix.setColorToSelection((int) e.getValue());
+        if (e.isController()) {
 
-        } else if (e.getController().getName().startsWith("colorX")) {
+            if (e.getController().getName().contentEquals("wheelcolor")) {
+                // apply color to cubes while scrolling, data will be send to cubes by the refresh routine
+                matrix.setColorToSelection((int) e.getValue());
+            } else if (e.getController().getName().startsWith("colorX")) {
 
-            matrix.setColorToSelection((e.getController().getColor().getForeground()));
+                applyColorAndSend((e.getController().getColor().getForeground()));
 
-            if (sendEnable) {
-                matrix.getCubeList().stream().filter(Cube::isSelected).forEach(cube -> {
-                    writeCube(cube);
-                    cube.setLastUpdateMillis(millis());
-                });
-            }
-        } else if(e.getController().getName().contentEquals("fadetime")) {
-            if (matrix != null) {
-                matrix.setFadetimeToSelection((int) e.getController().getValue());
+            } else if (e.getController().getName().contentEquals("fadetime")) {
+                if (matrix != null) {
+                    matrix.setFadetimeToSelection((int) e.getController().getValue());
+                }
             }
         }
     }
@@ -232,7 +314,7 @@ public class MainWindow extends PApplet {
 
             List<BaseCube> cubes = value.getPresetCubes();
 
-            for(int i = 0; i < matrix.getCubeList().size(); i++) {
+            for (int i = 0; i < matrix.getCubeList().size(); i++) {
                 BaseCube baseCube = cubes.get(i);
                 Cube cube = matrix.getCubeList().get(i);
                 baseCube.setColor(cube.getColor());
@@ -290,7 +372,7 @@ public class MainWindow extends PApplet {
                             leCube.setColor(presetCube.getColor());
                             leCube.setFadetime(presetCube.getFadetime());
 
-                            if(sendEnable && currentColor != presetCube.getColor()) {
+                            if (sendEnable && currentColor != presetCube.getColor()) {
                                 writeCube(leCube);
                                 leCube.setLastUpdateMillis(millis());
                             }

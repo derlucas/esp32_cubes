@@ -9,6 +9,7 @@ import processing.core.PGraphics;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 import static processing.core.PApplet.nf;
@@ -169,6 +170,23 @@ public class MyMatrix extends Controller<MyMatrix> {
         }
     }
 
+    public void random() {
+        Random random = new Random(((PApplet)_myPlug).millis());
+        boolean odd = false;
+        for (Cube cube : _myCells) {
+            odd = random.nextBoolean();
+            cube.setSelected(odd);
+        }
+    }
+
+    public void selModulo(int x) {
+        int i = 0;
+        for (Cube cube : _myCells) {
+            cube.setSelected( (i % x == 0) );
+            i++;
+        }
+    }
+
     public void all() {
         _myCells.forEach(cube -> cube.setSelected(true));
     }
@@ -231,13 +249,13 @@ public class MyMatrix extends Controller<MyMatrix> {
                     float sizeOld = theGraphics.textSize;
 
 
-                    theGraphics.textFont(cp5.getFont().getFont());
-                    theGraphics.textSize(12);
+//                    theGraphics.textFont(cp5.getFont().getFont());
+//                    theGraphics.textSize(12);
                     theGraphics.fill(255);
                     theGraphics.text(cube.getUid() + "", (x * stepX + gx) + 3, (y * stepY + gy) + 13);
-                    theGraphics.textSize(10);
+//                    theGraphics.textSize(10);
                     theGraphics.text(nf(cube.getFadetime() / 100f, 1,1) + "s", (x * stepX + gx) + 3, (y * stepY + gy) + 25);
-                    theGraphics.textSize(sizeOld);
+//                    theGraphics.textSize(sizeOld);
                 }
             }
 
