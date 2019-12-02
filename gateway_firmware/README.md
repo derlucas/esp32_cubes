@@ -1,6 +1,6 @@
-# ESP32-Wuerfel Gateway
+# esp32_cubes Gateway
 
-Firmware based on PlatformIO for ESP32 based gateway device to controll RGB lights
+Firmware based on PlatformIO for ESP32 based gateway device to control RGB lights
 via ESP-NOW protocol.
 
 Currently this is used to control the colors of 50 plastic LED Cubes (30x30x30cm)
@@ -29,11 +29,11 @@ Serial Settings: 115200 Baud, 8N1
 
 ### Serial Protocol
 
-```
-COMMAND,ID,PAYLOAD
-```
+String based protocol: CMD,PAYLOAD
 
-Commands:
+All Items are comma separated. Line must end with "\n".
+
+Commands (CMD):
 
   * A = "Blackout all"\
     Payload = 1 Byte (0 = blackout, 1 = restore)
@@ -41,10 +41,11 @@ Commands:
     Payload = 5 Bytes (ADDR,FADETIME,RED,GREEN,BLUE)
     
 
-##### Blackout:
+#### Blackout:
 
-This will blackout all lights immediately. The lights will store their last set color for restore.
-This function internally uses the Broadcast Address (0xff).
+This will blackout all lights immediately. The lights will store their last set
+color for restore. This function internally uses the Broadcast Address (0xff) to
+send the command at the same time to all lights.
 
 Send one Char/Byte (uint8_t) Payload, where
 
@@ -60,15 +61,17 @@ gateway.write("A,1" + '\n');
     
 ##### Set Color:
 
-This will set a color of an individual light. Available parameters are fading time and the values for RGB as Bytes.
+This will set a color of an individual light. Available parameters are fading
+time and the values for RGB as Bytes.
 
-Fadetime is in Centiseconds, so a Value of 100 will be 1s. Values are from 0 to 255 (0s to 2,55s)
+Fadetime is in Centiseconds, so a Value of 100 will be 1s. Values are from
+0 to 255 (0s to 2,55s)
 
 Values for R,G and B are from 0 to 255 (zero to max brightness).
   
 Example Java Processing code:
 ```java
-// send purple color to light no 31 with fade time of 100 ms
+// send purple color to light number 31, fade time 100 ms
 Serial gateway;
 gateway = new Serial(this, "/dev/ttyUSB0", 115200);
 gateway.write("B,31,10,200,0,100" + '\n');
