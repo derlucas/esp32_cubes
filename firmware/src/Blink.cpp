@@ -16,6 +16,12 @@
 #define CUBE_ADDR_BCAST     0xff
 #define COMMAND_BLACKOUT    0x01
 #define COMMAND_COLOR       0x02
+#define COMMAND_DEF_COLOR   0x03
+
+#define PREF_KEY_UID        "uid"
+#define PREF_KEY_DEFAULT_R  "dfr"
+#define PREF_KEY_DEFAULT_G  "dfg"
+#define PREF_KEY_DEFAULT_B  "dfb"
 
 #ifdef USE_WS2812
 #define WS2812_PIN          14
@@ -80,6 +86,8 @@ void handle_command_color(const ESP_NOW_FOO &command);
 
 void handle_command_blackout(const ESP_NOW_FOO &command);
 
+void handle_command_set_default_color(const ESP_NOW_FOO &command);
+
 enum OTA_MODE {
     NONE,
     SEARCHING,
@@ -90,8 +98,7 @@ enum OTA_MODE {
 uint16_t otaWaitCounter;
 uint16_t uid;
 Preferences prefs;
-boolean startupFadeDone = false;
-boolean blackedout = false;
+boolean espNowInputEnable = false;
 
 #ifdef USE_WS2812
 NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> strip(WS2812_COUNT, WS2812_PIN);
@@ -193,12 +200,24 @@ void fadeTo(uint8_t duration, RgbColor targetColor) {
     animations.StartAnimation(0, duration, animUpdate);
 }
 
+void loadDefaultColor() {
+#ifdef UART_DEBUG
+    Serial.println("loading default color");
+#endif
+    RgbColor defaultColor = RgbColor(
+            prefs.getUChar(PREF_KEY_DEFAULT_R),
+            prefs.getUChar(PREF_KEY_DEFAULT_G),
+            prefs.getUChar(PREF_KEY_DEFAULT_B));
+
+    setColor(defaultColor);
+}
+
 /**
  * This is a short startup animation to show the user the device is powered on
  * It will be a fade from Black to Red to Green to Blue and Black
  */
 void startupFade() {
-    startupFadeDone = false;
+    espNowInputEnable = false;
 
     AnimUpdateCallback animUpdate = [=](const AnimationParam &param) {
         float newProgress = param.progress;
@@ -226,10 +245,11 @@ void startupFade() {
         }
 
         setColor(RgbColor::LinearBlend(sourceColor, targetColor, newProgress));
+
         if (param.progress >= 0.99f) {
-            // this way we check if the startup is done and then set a dim purple solid color
-            startupFadeDone = true;
-            setColor(RgbColor(20, 0, 20));
+            // this way we check if the startup is done
+            espNowInputEnable = true;
+            loadDefaultColor();
         }
     };
 
@@ -253,7 +273,7 @@ void on_receive_data(const uint8_t *mac_addr, const uint8_t *data, int len) {
     Serial.printf(" len: %d\n", len);
 #endif
 
-    if (!startupFadeDone) {
+    if (!espNowInputEnable) {
         return;
     }
 
@@ -274,13 +294,18 @@ void on_receive_data(const uint8_t *mac_addr, const uint8_t *data, int len) {
 #endif
 
         if (command.uid == CUBE_ADDR_BCAST || command.uid == uid) {
-            if (command.command == COMMAND_COLOR && !blackedout) {
-                handle_command_color(command);
-            } else if (command.command == COMMAND_BLACKOUT) {
-                handle_command_blackout(command);
+            switch (command.command) {
+                case COMMAND_COLOR:
+                    handle_command_color(command);
+                    break;
+                case COMMAND_BLACKOUT:
+                    handle_command_blackout(command);
+                    break;
+                case COMMAND_DEF_COLOR:
+                    handle_command_set_default_color(command);
+                    break;
             }
         }
-
     }
 }
 
@@ -311,14 +336,48 @@ void handle_command_blackout(const ESP_NOW_FOO &command) {
         Serial.println("blacking out");
 #endif
         blackout();
-        blackedout = true;
     } else {
 #ifdef UART_DEBUG
         Serial.println("restoring color");
 #endif
         setColor(currentSetColor);
-        blackedout = false;
     }
+}
+
+void handle_command_set_default_color(const ESP_NOW_FOO &command) {
+#ifdef UART_DEBUG
+    Serial.println("command set_default_color");
+#endif
+    if (command.payload[0] == 0x01) {
+        prefs.putUChar(PREF_KEY_DEFAULT_R, currentSetColor.R);
+        prefs.putUChar(PREF_KEY_DEFAULT_G, currentSetColor.G);
+        prefs.putUChar(PREF_KEY_DEFAULT_B, currentSetColor.B);
+
+        espNowInputEnable = false;
+        const RgbColor storeColor = currentSetColor;
+
+        AnimUpdateCallback animUpdate = [=](const AnimationParam &param) {
+            if(param.progress < .1f) {
+                setColor(green);
+            } else if(param.progress < .3f) {
+                setColor(storeColor);
+            } else if(param.progress < .5f) {
+                setColor(green);
+            } else if(param.progress < .7f) {
+                setColor(storeColor);
+            } else if(param.progress < .9f) {
+                setColor(green);
+            }
+
+            if (param.progress >= .99f) {
+                setColor(storeColor);
+                espNowInputEnable = true;
+            }
+        };
+
+        animations.StartAnimation(0, 100, animUpdate);
+    }
+
 }
 
 /**
@@ -374,7 +433,7 @@ void checkOTA() {
 }
 
 void normalBoot() {
-    uid = prefs.getUShort("uid", 0);
+    uid = prefs.getUShort(PREF_KEY_UID, 0);
 
     if (uid != 0) {
         Serial.println("--------------- Enter c to remove UID  -------------");
@@ -390,9 +449,9 @@ void normalBoot() {
 
             if (received == 'c' && inData.indexOf("c") > -1) {
                 Serial.println("clearing uid");
-                prefs.putUShort("uid", 0);
+                prefs.putUShort(PREF_KEY_UID, 0);
                 uid = askNumber("uid", &red);
-                prefs.putUShort("uid", uid);
+                prefs.putUShort(PREF_KEY_UID, uid);
                 Serial.printf("my new uid: %d\n", uid);
             }
         }
@@ -402,7 +461,7 @@ void normalBoot() {
         Serial.printf("my uid: %d\n", uid);
     } else {
         uid = askNumber("uid", &red);
-        prefs.putUShort("uid", uid);
+        prefs.putUShort(PREF_KEY_UID, uid);
         Serial.printf("my new uid: %d\n", uid);
     }
 

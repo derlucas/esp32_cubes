@@ -39,6 +39,7 @@ struct ESP_NOW_FOO {
 
  * COMMAND_BLACKOUT = 0x01
  * COMMAND_COLOR = 0x02
+ * COMMAND_DEF_COLOR = 0x03
  
  
 #### Blackout:
@@ -53,4 +54,10 @@ struct ESP_NOW_FOO {
  * Payload[2] = Color Green
  * Payload[3] = Color Blue
  
+#### Set Default Color:
 
+The light will store its current color in memory and show this color on boot.
+To disable the default color, set color to black and send this command again.
+
+ * Payload[0] = Set to 0x01 to store current color
+ * Payload[1-3] = don't care (send zeros) 

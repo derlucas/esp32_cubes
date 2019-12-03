@@ -1,14 +1,11 @@
 #include <Arduino.h>
 #include <esp_now.h>
 #include <WiFi.h>
-#include <ETH.h>
 #include "espnowhandler.h"
 
 //#define UART_DEBUG
-#define USE_ARTNET
 
 espnowhandler handler;
-
 
 void setup() {
     Serial.begin(115200);
@@ -23,8 +20,6 @@ void setup() {
 
     handler.init();
 }
-
-
 
 void loop() {
 
@@ -54,6 +49,10 @@ void loop() {
 #endif
 
             handler.send_color(uid, fadetime, red, green, blue);
+        } else if(inData.startsWith("C,")) {
+            int uid, count;
+            sscanf(inData.c_str(), "C,%d", &uid);
+            handler.send_default_color_command(uid);
         }
 
         inData = "";

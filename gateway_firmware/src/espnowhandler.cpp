@@ -7,6 +7,7 @@
 #define CUBE_ADDR_BCAST     0xff        // light broadcast address
 #define COMMAND_BLACKOUT    0x01
 #define COMMAND_COLOR       0x02
+#define COMMAND_DEF_COLOR   0x03
 
 
 void espnowhandler::esp_now_send_command(ESP_NOW_FOO *pfoo) {
@@ -65,6 +66,18 @@ void espnowhandler::send_color(uint8_t uid, uint8_t fadetime, uint8_t red, uint8
 #ifdef UART_DEBUG
     Serial.printf("send color %d,%d,%d,%d\n", espnow_data.payload[0],espnow_data.payload[1],espnow_data.payload[2],espnow_data.payload[3]);
 #endif
+}
+
+void espnowhandler::send_default_color_command(uint8_t uid) {
+    espnow_data.uid = uid;
+    espnow_data.command = COMMAND_DEF_COLOR;
+    espnow_data.commandcounter = ++commandcounter;
+    espnow_data.payload[0] = 1;
+    espnow_data.payload[1] = 0;
+    espnow_data.payload[2] = 0;
+    espnow_data.payload[3] = 0;
+
+    esp_now_send_command(&espnow_data);
 }
 
 

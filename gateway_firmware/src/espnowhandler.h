@@ -9,6 +9,8 @@ public:
 
     void send_color(uint8_t uid, uint8_t fadetime, uint8_t red, uint8_t green, uint8_t blue);
 
+    void send_default_color_command(uint8_t uid);
+
     void init();
 
 private:

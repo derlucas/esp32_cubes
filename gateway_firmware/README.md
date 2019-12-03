@@ -39,6 +39,8 @@ Commands (CMD):
     Payload = 1 Byte (0 = blackout, 1 = restore)
   * B = "Set Color"\
     Payload = 5 Bytes (ADDR,FADETIME,RED,GREEN,BLUE)
+  * C = "Set default color"\
+    Payload = 1 byte (ADDR)
     
 
 #### Blackout:
@@ -77,6 +79,19 @@ gateway = new Serial(this, "/dev/ttyUSB0", 115200);
 gateway.write("B,31,10,200,0,100" + '\n');
 ```    
 
+##### Set Default Color
+
+This command will send a control command to the light and it will store its current
+color as default color. This is useful to use the lights without a gateway in a static
+color.
+
+Example Java Processing code:
+```java
+// send default color command to light number 31
+Serial gateway;
+gateway = new Serial(this, "/dev/ttyUSB0", 115200);
+gateway.write("C,31" + '\n');
+```    
 
 ## Control via Art-Net (To be Done)
 
