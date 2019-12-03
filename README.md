@@ -14,6 +14,9 @@ Please look into the subfolders for the different parts of the Project.
 It was created to control 50 battery powered LED Cubes (30x30x30cm) for a
 Theatre Play.
 
+## Pictures
+
+![installation at Theatre](doc/88a75917-7ea6-4dd9-80a9-dc94a8e3b59b.jpeg)
 
 Screenshot of our rather basic controlling Software:
 ![Screenshot of the Software](doc/processing.png)
