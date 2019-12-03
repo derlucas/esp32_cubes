@@ -6,14 +6,23 @@
 #include <NeoPixelAnimator.h>
 #include <Preferences.h>
 
+//#define UART_DEBUG
+
+#define OTA_WIFI_SSID       "esp32-wuerfel-ota"
+#define OTA_WIFI_PASSWORD   "geheim323232"
+#define OTA_WAIT_TIMEOUT    100     // in 0.1s increments -> 10s
+
 #define PREAMBLE            0xAABB
 #define CUBE_ADDR_BCAST     0xff
 #define COMMAND_BLACKOUT    0x01
 #define COMMAND_COLOR       0x02
-#define OTA_WAIT_TIMEOUT    100     // in 0.1s increments -> 10s
+
+#ifdef USE_WS2812
 #define WS2812_PIN          14
 #define WS2812_COUNT        14
+#endif
 
+// on Boards without WS2812 we use this PINout and Gamma Tables
 #ifdef USE_PWM
 #define LED_PIN_WHITE   14
 #define LED_PIN_BLUE    25
@@ -56,7 +65,7 @@ const uint8_t gamma_green[] = {
   226,228,230,232,233,235,237,239,241,243,245,247,249,251,253,255 };
 #endif
 
-uint32_t commandcounter = 0;
+uint32_t commandcounter = 0;    // this is currently not used.
 
 struct ESP_NOW_FOO {
     uint16_t preable;
@@ -67,13 +76,15 @@ struct ESP_NOW_FOO {
     uint8_t payload[4];
 };
 
+void handle_command_color(const ESP_NOW_FOO &command);
+
+void handle_command_blackout(const ESP_NOW_FOO &command);
+
 enum OTA_MODE {
     NONE,
     SEARCHING,
     WAITING,
-    UPDATING,
-    FAILED,
-    DONE
+    UPDATING
 } otaMode = NONE;
 
 uint16_t otaWaitCounter;
@@ -142,6 +153,11 @@ void blackout() {
 
 }
 
+/**
+ * Sets a color instantaneously
+ *
+ * @param color The color to display
+ */
 void setColor(RgbColor color) {
 #ifdef USE_WS2812
     for (uint16_t pixel = 0; pixel < WS2812_COUNT; pixel++) {
@@ -158,6 +174,12 @@ void setColor(RgbColor color) {
     currentSetColor = color;
 }
 
+/**
+ * Sets a color fade the output to
+ *
+ * @param duration      The fade duration in centiseconds.
+ * @param targetColor   The color to fade to.
+ */
 void fadeTo(uint8_t duration, RgbColor targetColor) {
 
     animations.StopAll();
@@ -166,14 +188,15 @@ void fadeTo(uint8_t duration, RgbColor targetColor) {
 
     AnimUpdateCallback animUpdate = [=](const AnimationParam &param) {
         setColor(RgbColor::LinearBlend(startColor, targetColor, param.progress));
-        if (param.progress >= 0.99f) {
-
-        }
     };
 
     animations.StartAnimation(0, duration, animUpdate);
 }
 
+/**
+ * This is a short startup animation to show the user the device is powered on
+ * It will be a fade from Black to Red to Green to Blue and Black
+ */
 void startupFade() {
     startupFadeDone = false;
 
@@ -204,6 +227,7 @@ void startupFade() {
 
         setColor(RgbColor::LinearBlend(sourceColor, targetColor, newProgress));
         if (param.progress >= 0.99f) {
+            // this way we check if the startup is done and then set a dim purple solid color
             startupFadeDone = true;
             setColor(RgbColor(20, 0, 20));
         }
@@ -212,13 +236,22 @@ void startupFade() {
     animations.StartAnimation(0, 100, animUpdate);
 }
 
+/**
+ * this function is called on ESP-Receive
+ *
+ * @param mac_addr
+ * @param data
+ * @param len
+ */
 void on_receive_data(const uint8_t *mac_addr, const uint8_t *data, int len) {
-//    char macStr[18];
-//    snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-//             mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-//    Serial.print("Recv from: ");
-//    Serial.print(macStr);
-//    Serial.printf(" len: %d\n", len);
+#ifdef UART_DEBUG
+    char macStr[18];
+    snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+             mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+    Serial.print("Recv from: ");
+    Serial.print(macStr);
+    Serial.printf(" len: %d\n", len);
+#endif
 
     if (!startupFadeDone) {
         return;
@@ -230,47 +263,72 @@ void on_receive_data(const uint8_t *mac_addr, const uint8_t *data, int len) {
         memcpy(&command, data, sizeof(command));
 
         if (command.preable != PREAMBLE) {
+#ifdef UART_DEBUG
             Serial.println("wrong preamble");
+#endif
             return;
         }
-//        Serial.printf("command: %d, uid: %d\n", command.command, command.uid);
+
+#ifdef UART_DEBUG
+        Serial.printf("command: %d, uid: %d\n", command.command, command.uid);
+#endif
 
         if (command.uid == CUBE_ADDR_BCAST || command.uid == uid) {
-
             if (command.command == COMMAND_COLOR && !blackedout) {
-//                Serial.printf("color command %d %d %d %d\n",command.payload[0], command.payload[1], command.payload[2], command.payload[3]);
-
-                animations.StopAll();
-
-                if (command.payload[0] > 0) {
-                    // fade
-                    fadeTo(command.payload[0], RgbColor(command.payload[1], command.payload[2], command.payload[3]));
-
-                } else {
-                    // switch color directly
-                    setColor(RgbColor(command.payload[1], command.payload[2], command.payload[3]));
-                }
-
-
+                handle_command_color(command);
             } else if (command.command == COMMAND_BLACKOUT) {
-//            Serial.println("blackout command");
-
-                if (command.payload[0] == 0x01) {
-//                Serial.println("blacking out");
-                    blackout();
-                    blackedout = true;
-                } else {
-//                Serial.println("restoring color");
-                    setColor(currentSetColor);
-                    blackedout = false;
-                }
-
+                handle_command_blackout(command);
             }
         }
 
     }
 }
 
+void handle_command_color(const ESP_NOW_FOO &command) {
+#ifdef UART_DEBUG
+    Serial.printf("color command %d %d %d %d\n",command.payload[0], command.payload[1], command.payload[2], command.payload[3]);
+#endif
+
+    animations.StopAll();
+
+    if (command.payload[0] > 0) {
+        // fade
+        fadeTo(command.payload[0], RgbColor(command.payload[1], command.payload[2], command.payload[3]));
+
+    } else {
+        // switch color directly
+        setColor(RgbColor(command.payload[1], command.payload[2], command.payload[3]));
+    }
+}
+
+void handle_command_blackout(const ESP_NOW_FOO &command) {
+#ifdef UART_DEBUG
+    Serial.println("blackout command");
+#endif
+
+    if (command.payload[0] == 0x01) {
+#ifdef UART_DEBUG
+        Serial.println("blacking out");
+#endif
+        blackout();
+        blackedout = true;
+    } else {
+#ifdef UART_DEBUG
+        Serial.println("restoring color");
+#endif
+        setColor(currentSetColor);
+        blackedout = false;
+    }
+}
+
+/**
+ * this function asks on the Serial console to enter a light UID
+ * Before the Question it will blink 3 times.
+ *
+ * @param prefName      The Preference Name to display for Input.
+ * @param flashcolor    The color to flash the LEDs
+ * @return              The given number.
+ */
 uint16_t askNumber(const char *prefName, RgbColor *flashcolor) {
 
     for (int i = 0; i < 4; ++i) {
@@ -294,13 +352,17 @@ uint16_t askNumber(const char *prefName, RgbColor *flashcolor) {
     return uid;
 }
 
+/**
+ * this function will set the LED to Yellow color and then
+ * try to connect to OTA WiFi.
+ */
 void checkOTA() {
     otaMode = SEARCHING;
     Serial.println("looking for OTA WiFi...");
 
     setColor(RgbColor(100,100,0));
     // WARNING: to allow ESP-NOW work, this WiFi must be on Channel 1
-    WiFi.begin("esp32-wuerfel-ota", "geheim323232");
+    WiFi.begin(OTA_WIFI_SSID, OTA_WIFI_PASSWORD);
 
     while (WiFi.waitForConnectResult() != WL_CONNECTED) {
         Serial.println("no OTA WiFi found, proceed normal boot");
