@@ -134,6 +134,8 @@ public class MainWindow extends PApplet {
 
         cp5.addToggle("clearAfterColor").setPosition(230, 680).setSize(40, 40).setLabel("Clear after Color (+)");
 
+        cp5.addBang("storeDefaultColor").setPosition(230, 680+70).setSize(40, 40).setLabel("store default Color");
+
 
         cp5.addLabel("recent colors:", 470, 610);
         for (int i = 0; i < MAX_COLOR_HISTORY; i++) {
@@ -199,6 +201,16 @@ public class MainWindow extends PApplet {
         textSize(11);
 
         loadPresets();
+    }
+
+    public void storeDefaultColor() {
+        if (sendEnable) {
+            for(Cube cube: matrix.getCubeList()) {
+                if(cube.isSelected()) {
+                    gateway.write("C," + cube.getUid() + '\n');
+                }
+            }
+        }
     }
 
     public void presetlist(int n) {
