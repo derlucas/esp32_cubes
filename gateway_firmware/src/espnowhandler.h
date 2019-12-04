@@ -25,11 +25,15 @@ private:
         uint8_t command;
         uint8_t crc;
         uint8_t payload[4];
-    } __attribute__((packed)) lightcontrol_espnow_data_t;
+    } lightcontrol_espnow_data_t;
 
     lightcontrol_espnow_data_t *espnow_data;
 
 //    void esp_now_send_command(lightcontrol_espnow_data_t *pfoo);
+
+    static void wifi_init(void);
+
+
 };
 
 

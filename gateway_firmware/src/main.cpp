@@ -3,10 +3,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/uart.h"
-//#include "espnowhandler.h"
+#include "espnowhandler.h"
 #include "nvs_flash.h"
 
-#define LOG_LOCAL_LEVEL  4
+#define LOG_LOCAL_LEVEL  1
 #include "esp_log.h"
 
 #define PATTERN_LENGTH  (1)         //length of the pattern ("X")
@@ -15,7 +15,7 @@
 static const char *TAG = "gateway";
 static QueueHandle_t uart0_queue;
 
-//espnowhandler handler;
+espnowhandler handler;
 extern "C" {
 void app_main(void);
 }
@@ -39,20 +39,20 @@ void esp_handle_uart_pattern(uint8_t *dtmp) {
         ESP_LOGD(TAG, "read pat : %s", pat);
 
         if (buffered_size >= 4 && dtmp[0] == 'A') {
-//            handler.send_blackout(dtmp[2] == '0');
-            ESP_LOGD(TAG, "sending blackout %s", (dtmp[2] == '0') ? "true" : "false");
+            handler.send_blackout(dtmp[2] == '1');
+            ESP_LOGD(TAG, "sending blackout %s", (dtmp[2] == '1') ? "true" : "false");
         } else if (buffered_size >= 12 && dtmp[0] == 'B') {
             ESP_LOGD(TAG, "sending color");
             int uid, fadetime, red, green, blue;
             sscanf(reinterpret_cast<const char *>(dtmp), "B,%d,%d,%d,%d,%dX", &uid, &fadetime, &red, &green, &blue);
             ESP_LOGD(TAG, "uid=%d  red=%d  green=%d  blue=%d  time=%d", uid, red, green, blue, fadetime);
-//            handler.send_color(uid, fadetime, red, green, blue);
-        } else if (buffered_size >= 12 && dtmp[0] == 'C') {
+            handler.send_color(uid, fadetime, red, green, blue);
+        } else if (buffered_size >= 4 && dtmp[0] == 'C') {
             ESP_LOGD(TAG, "sending store default color");
             int uid;
             sscanf(reinterpret_cast<const char *>(dtmp), "C,%dX", &uid);
             ESP_LOGD(TAG, "uid=%d ", uid);
-//            handler.send_default_color_command(uid);
+            handler.send_default_color_command(uid);
         }
 
     } else {
@@ -127,7 +127,7 @@ void app_main() {
 
     ESP_LOGI(TAG, "Initializing Gateway...\n");
     nvs_flash_init();
-//    handler.init();
+    handler.init();
 
 
     xTaskCreate(uart_task, "uart_task", 2048, NULL, 10, NULL);

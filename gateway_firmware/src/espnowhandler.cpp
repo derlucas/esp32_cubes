@@ -1,15 +1,21 @@
-#include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdlib.h>
 #include <assert.h>
-#include "esp_log.h"
-#include <esp_now.h>
+#include "esp_event.h"
+#include "nvs_flash.h"
+#include "esp_event_loop.h"
+#include "tcpip_adapter.h"
+#include "esp_wifi.h"
+#include "esp_now.h"
+#include "rom/crc.h"
 
+#define LOG_LOCAL_LEVEL  1
+#include "esp_log.h"
 #include "espnowhandler.h"
 
-#define CONFIG_ESPNOW_CHANNEL   0
+#define ESPNOW_CHANNEL   1
 #define PREAMBLE            0xAABB
 #define CUBE_ADDR_BCAST     0xff        // light broadcast address
 #define COMMAND_BLACKOUT    0x01
@@ -28,6 +34,7 @@ static uint8_t broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 
 void espnowhandler::send_blackout(bool blackout) {
     memset(espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
     espnow_data->uid = CUBE_ADDR_BCAST;
+    espnow_data->preamble = PREAMBLE;
     espnow_data->command = COMMAND_BLACKOUT;
     espnow_data->commandcounter = ++commandcounter;
     espnow_data->payload[0] = (uint8_t)(blackout ? 0x01 : 0x00);
@@ -39,9 +46,7 @@ void espnowhandler::send_blackout(bool blackout) {
     vTaskDelay(20 / portTICK_PERIOD_MS);
     espnow_data->commandcounter = ++commandcounter;
     esp_now_send(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
-#ifdef UART_DEBUG
-    Serial.printf("send blackout %d\n", espnow_data.payload[0]);
-#endif
+    ESP_LOGD(TAG, "send blackout %d\n", espnow_data->payload[0]);
 }
 
 /**
@@ -56,6 +61,7 @@ void espnowhandler::send_blackout(bool blackout) {
 void espnowhandler::send_color(uint8_t uid, uint8_t fadetime, uint8_t red, uint8_t green, uint8_t blue) {
     memset(espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
     espnow_data->uid = uid;
+    espnow_data->preamble = PREAMBLE;
     espnow_data->command = COMMAND_COLOR;
     espnow_data->commandcounter = ++commandcounter;
     espnow_data->payload[0] = fadetime;
@@ -63,22 +69,52 @@ void espnowhandler::send_color(uint8_t uid, uint8_t fadetime, uint8_t red, uint8
     espnow_data->payload[2] = green;
     espnow_data->payload[3] = blue;
     esp_now_send(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
-#ifdef UART_DEBUG
-    Serial.printf("send color %d,%d,%d,%d\n", espnow_data.payload[0],espnow_data.payload[1],espnow_data.payload[2],espnow_data.payload[3]);
-#endif
+    ESP_LOGD(TAG, "send color %d,%d,%d,%d\n", espnow_data->payload[0],espnow_data->payload[1],espnow_data->payload[2],espnow_data->payload[3]);
 }
 
 void espnowhandler::send_default_color_command(uint8_t uid) {
     memset(espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
     espnow_data->uid = uid;
+    espnow_data->preamble = PREAMBLE;
     espnow_data->command = COMMAND_DEF_COLOR;
     espnow_data->commandcounter = ++commandcounter;
     espnow_data->payload[0] = 1;
     esp_now_send(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
+    ESP_LOGD(TAG, "send default color to uid %d\n", espnow_data->uid);
 }
 
+static esp_err_t example_event_handler(void *ctx, system_event_t *event) {
+    switch(event->event_id) {
+        case SYSTEM_EVENT_STA_START:
+            ESP_LOGI(TAG, "WiFi started");
+            break;
+        default:
+            break;
+    }
+    return ESP_OK;
+}
+
+void espnowhandler::wifi_init() {
+    tcpip_adapter_init();
+    ESP_ERROR_CHECK( esp_event_loop_init(example_event_handler, NULL) );
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
+    ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
+    ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA) );
+    ESP_ERROR_CHECK( esp_wifi_start());
+
+    /* In order to simplify example, channel is set after WiFi started.
+     * This is not necessary in real application if the two devices have
+     * been already on the same channel.
+     */
+    ESP_ERROR_CHECK( esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE) );
+}
 
 esp_err_t espnowhandler::init() {
+
+    ESP_LOGD(TAG, "espnow init...");
+    wifi_init();
+
     espnow_data = static_cast<lightcontrol_espnow_data_t *>(malloc(sizeof(lightcontrol_espnow_data_t)));
     memset(espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
     if (espnow_data == nullptr) {
@@ -86,11 +122,14 @@ esp_err_t espnowhandler::init() {
         esp_now_deinit();
         return ESP_FAIL;
     }
+    ESP_LOGD(TAG, "malloc ok");
 
     espnow_data->preamble = PREAMBLE;
     espnow_data->command = COMMAND_COLOR;
 
+    ESP_LOGD(TAG, "data set");
     ESP_ERROR_CHECK( esp_now_init() );
+    ESP_LOGD(TAG, "esp now init ok");
 
     /* Add broadcast peer information to peer list. */
     auto *peeer = static_cast<esp_now_peer_info_t *>(malloc(sizeof(esp_now_peer_info_t)));
@@ -101,7 +140,7 @@ esp_err_t espnowhandler::init() {
         return ESP_FAIL;
     }
     memset(peeer, 0, sizeof(esp_now_peer_info_t));
-    peeer->channel = CONFIG_ESPNOW_CHANNEL;
+    peeer->channel = ESPNOW_CHANNEL;
     peeer->ifidx = ESP_IF_WIFI_STA;         // configure to station mode
     peeer->encrypt = false;
     memcpy(peeer->peer_addr, broadcast_mac, ESP_NOW_ETH_ALEN);
