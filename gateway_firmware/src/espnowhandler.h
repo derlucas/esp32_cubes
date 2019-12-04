@@ -11,24 +11,25 @@ public:
 
     void send_default_color_command(uint8_t uid);
 
-    void init();
+    esp_err_t init();
 
 private:
-    uint8_t peer_addr[6];
+
     uint32_t commandcounter = 0;
 
-    struct ESP_NOW_FOO {
+    /* User defined field of ESPNOW data */
+    typedef struct {
         uint16_t preamble;
         uint8_t uid;
         uint32_t commandcounter;
         uint8_t command;
         uint8_t crc;
         uint8_t payload[4];
-    };
+    } __attribute__((packed)) lightcontrol_espnow_data_t;
 
-    ESP_NOW_FOO espnow_data;
+    lightcontrol_espnow_data_t *espnow_data;
 
-    void esp_now_send_command(ESP_NOW_FOO *pfoo);
+//    void esp_now_send_command(lightcontrol_espnow_data_t *pfoo);
 };
 
 

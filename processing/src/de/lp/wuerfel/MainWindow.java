@@ -207,7 +207,7 @@ public class MainWindow extends PApplet {
         if (sendEnable) {
             for(Cube cube: matrix.getCubeList()) {
                 if(cube.isSelected()) {
-                    gateway.write("C," + cube.getUid() + '\n');
+                    gateway.write("C," + cube.getUid() + "X");
                 }
             }
         }
@@ -240,7 +240,7 @@ public class MainWindow extends PApplet {
 
     public void setBlackout(boolean bo) {      // function for the ControlP5 Toggle
         if (this.blackout != bo) {
-            gateway.write("A," + (bo ? "1" : "0") + '\n');
+            gateway.write("A," + (bo ? "1" : "0") + "X");
         }
         this.blackout = bo;
     }
@@ -250,7 +250,7 @@ public class MainWindow extends PApplet {
         int red = cube.getColor() >> 16 & 0xff;
         int green = cube.getColor() >> 8 & 0xff;
         int blue = cube.getColor() & 0xff;
-        gateway.write("B," + cube.getUid() + "," + (cube.getFadetime()) + "," + red + "," + green + "," + blue + '\n');
+        gateway.write("B," + cube.getUid() + "," + (cube.getFadetime()) + "," + red + "," + green + "," + blue + "X");
     }
 
 
