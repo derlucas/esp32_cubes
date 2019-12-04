@@ -73,8 +73,8 @@ const uint8_t gamma_green[] = {
 
 uint32_t commandcounter = 0;    // this is currently not used.
 
-struct ESP_NOW_FOO {
-    uint16_t preable;
+struct lightcontrol_espnow_data_t {
+    uint16_t premable;
     uint8_t uid;
     uint32_t commandcounter;
     uint8_t command;
@@ -82,11 +82,11 @@ struct ESP_NOW_FOO {
     uint8_t payload[4];
 };
 
-void handle_command_color(const ESP_NOW_FOO &command);
+void handle_command_color(const lightcontrol_espnow_data_t &command);
 
-void handle_command_blackout(const ESP_NOW_FOO &command);
+void handle_command_blackout(const lightcontrol_espnow_data_t &command);
 
-void handle_command_set_default_color(const ESP_NOW_FOO &command);
+void handle_command_set_default_color(const lightcontrol_espnow_data_t &command);
 
 enum OTA_MODE {
     NONE,
@@ -271,18 +271,23 @@ void on_receive_data(const uint8_t *mac_addr, const uint8_t *data, int len) {
     Serial.print("Recv from: ");
     Serial.print(macStr);
     Serial.printf(" len: %d\n", len);
+
+    Serial.println("data:");
+    for(int i = 0; i < len;i++) {
+        Serial.printf("data[%d]: %d\n",i,data[i]);
+    }
 #endif
 
     if (!espNowInputEnable) {
         return;
     }
 
-    ESP_NOW_FOO command;
+    lightcontrol_espnow_data_t command;
 
     if (len == sizeof(command)) {
         memcpy(&command, data, sizeof(command));
 
-        if (command.preable != PREAMBLE) {
+        if (command.premable != PREAMBLE) {
 #ifdef UART_DEBUG
             Serial.println("wrong preamble");
 #endif
@@ -309,7 +314,7 @@ void on_receive_data(const uint8_t *mac_addr, const uint8_t *data, int len) {
     }
 }
 
-void handle_command_color(const ESP_NOW_FOO &command) {
+void handle_command_color(const lightcontrol_espnow_data_t &command) {
 #ifdef UART_DEBUG
     Serial.printf("color command %d %d %d %d\n",command.payload[0], command.payload[1], command.payload[2], command.payload[3]);
 #endif
@@ -326,7 +331,7 @@ void handle_command_color(const ESP_NOW_FOO &command) {
     }
 }
 
-void handle_command_blackout(const ESP_NOW_FOO &command) {
+void handle_command_blackout(const lightcontrol_espnow_data_t &command) {
 #ifdef UART_DEBUG
     Serial.println("blackout command");
 #endif
@@ -344,7 +349,7 @@ void handle_command_blackout(const ESP_NOW_FOO &command) {
     }
 }
 
-void handle_command_set_default_color(const ESP_NOW_FOO &command) {
+void handle_command_set_default_color(const lightcontrol_espnow_data_t &command) {
 #ifdef UART_DEBUG
     Serial.println("command set_default_color");
 #endif
