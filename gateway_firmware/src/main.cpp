@@ -2,12 +2,24 @@
 #include <cstring>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_event_loop.h"
+#include "esp_event.h"
 #include "driver/uart.h"
-#include "espnowhandler.h"
 #include "nvs_flash.h"
+#include "eth_phy/phy_lan8720.h"
+#include "driver/gpio.h"
+#include "tcpip_adapter.h"
+#include "lwip/err.h"
+#include "lwip/sockets.h"
+#include "lwip/sys.h"
+#include <lwip/netdb.h>
 
-#define LOG_LOCAL_LEVEL  1
-#include "esp_log.h"
+#define LOG_LOCAL_LEVEL  3
+#include <esp_log.h>
+
+#include "ethernet.h"
+#include "espnowhandler.h"
+
 
 #define PATTERN_LENGTH  (1)         //length of the pattern ("X")
 #define BUF_SIZE        (1024)
@@ -16,6 +28,8 @@ static const char *TAG = "gateway";
 static QueueHandle_t uart0_queue;
 
 espnowhandler handler;
+
+
 extern "C" {
 void app_main(void);
 }
@@ -94,9 +108,10 @@ void uart_task(void *arg) {
     }
 
     free(dtmp);
-    dtmp = NULL;
-    vTaskDelete(NULL);
+    dtmp = nullptr;
+    vTaskDelete(nullptr);
 }
+
 
 
 void app_main() {
@@ -130,6 +145,11 @@ void app_main() {
     handler.init();
 
 
-    xTaskCreate(uart_task, "uart_task", 2048, NULL, 10, NULL);
+    xTaskCreate(uart_task, "uart_task", 2048, nullptr, 10, nullptr);
+
+    int ret = ethernet::init_ethernet();
+    if(ret == ESP_OK) {
+        xTaskCreate(ethernet::udp_server_task, "udp_server_task", 4096, nullptr, (tskIDLE_PRIORITY + 2), nullptr);
+    }
 }
 
