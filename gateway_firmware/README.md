@@ -31,7 +31,7 @@ Serial Settings: 115200 Baud, 8N1
 
 String based protocol: CMD,PAYLOAD
 
-All Items are comma separated. Line must end with "\n".
+All Items are comma separated. Line must end with "X".
 
 Commands (CMD):
 
@@ -58,7 +58,7 @@ Example Java Processing code:
 ```java
 Serial gateway;
 gateway = new Serial(this, "/dev/ttyUSB0", 115200);
-gateway.write("A,1" + '\n');
+gateway.write("A,1" + 'X');
 ```
     
 ##### Set Color:
@@ -76,7 +76,7 @@ Example Java Processing code:
 // send purple color to light number 31, fade time 100 ms
 Serial gateway;
 gateway = new Serial(this, "/dev/ttyUSB0", 115200);
-gateway.write("B,31,10,200,0,100" + '\n');
+gateway.write("B,31,10,200,0,100" + 'X');
 ```    
 
 ##### Set Default Color
@@ -90,7 +90,7 @@ Example Java Processing code:
 // send default color command to light number 31
 Serial gateway;
 gateway = new Serial(this, "/dev/ttyUSB0", 115200);
-gateway.write("C,31" + '\n');
+gateway.write("C,31" + 'X');
 ```    
 
 ## Control via Art-Net (To be Done)
