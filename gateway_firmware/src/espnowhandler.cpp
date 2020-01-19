@@ -24,6 +24,19 @@
 
 static const char *TAG = "gateway-espnow";
 static uint8_t broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+static uint32_t commandcounter;
+
+/* User defined field of ESPNOW data */
+typedef struct {
+    uint16_t preamble;
+    uint8_t uid;
+    uint32_t commandcounter;
+    uint8_t command;
+    uint8_t crc;
+    uint8_t payload[4];
+} lightcontrol_espnow_data_t;
+
+static lightcontrol_espnow_data_t *espnow_data;
 
 /**
  * send blackout command via ESP-NOW

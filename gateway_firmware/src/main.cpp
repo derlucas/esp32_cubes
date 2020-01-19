@@ -17,7 +17,6 @@
 #define LOG_LOCAL_LEVEL  3
 
 #include <esp_log.h>
-
 #include "ethernet.h"
 #include "espnowhandler.h"
 
@@ -27,8 +26,6 @@
 
 static const char *TAG = "gateway";
 static QueueHandle_t uart0_queue;
-
-espnowhandler handler;
 
 
 extern "C" {
@@ -54,20 +51,20 @@ void esp_handle_uart_pattern(uint8_t *dtmp) {
         ESP_LOGD(TAG, "read pat : %s", pat);
 
         if (buffered_size >= 4 && dtmp[0] == 'A') {
-            handler.send_blackout(dtmp[2] == '1');
+            espnowhandler::send_blackout(dtmp[2] == '1');
             ESP_LOGD(TAG, "sending blackout %s", (dtmp[2] == '1') ? "true" : "false");
         } else if (buffered_size >= 12 && dtmp[0] == 'B') {
             ESP_LOGD(TAG, "sending color");
             int uid, fadetime, red, green, blue;
             sscanf(reinterpret_cast<const char *>(dtmp), "B,%d,%d,%d,%d,%dX", &uid, &fadetime, &red, &green, &blue);
             ESP_LOGD(TAG, "uid=%d  red=%d  green=%d  blue=%d  time=%d", uid, red, green, blue, fadetime);
-            handler.send_color(uid, fadetime, red, green, blue);
+            espnowhandler::send_color(uid, fadetime, red, green, blue);
         } else if (buffered_size >= 4 && dtmp[0] == 'C') {
             ESP_LOGD(TAG, "sending store default color");
             int uid;
             sscanf(reinterpret_cast<const char *>(dtmp), "C,%dX", &uid);
             ESP_LOGD(TAG, "uid=%d ", uid);
-            handler.send_default_color_command(uid);
+            espnowhandler::send_default_color_command(uid);
         }
 
     } else {
@@ -172,7 +169,7 @@ void app_main() {
 
     ESP_LOGI(TAG, "Initializing Gateway...\n");
     nvs_flash_init();
-    handler.init();
+    espnowhandler::init();
 
     ESP_ERROR_CHECK(esp_event_loop_init(event_handler, nullptr));
 
