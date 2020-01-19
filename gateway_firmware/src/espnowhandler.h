@@ -13,6 +13,8 @@ public:
 
     esp_err_t init();
 
+    static esp_err_t event_handler(void *ctx, system_event_t *event);
+
 private:
 
     uint32_t commandcounter = 0;
