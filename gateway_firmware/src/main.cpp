@@ -15,6 +15,7 @@
 #include <lwip/netdb.h>
 
 #define LOG_LOCAL_LEVEL  3
+
 #include <esp_log.h>
 
 #include "ethernet.h"
@@ -112,6 +113,35 @@ void uart_task(void *arg) {
     vTaskDelete(nullptr);
 }
 
+static esp_err_t event_handler(void *ctx, system_event_t *event) {
+    switch (event->event_id) {
+        case SYSTEM_EVENT_ETH_CONNECTED:
+        case SYSTEM_EVENT_ETH_DISCONNECTED:
+        case SYSTEM_EVENT_ETH_START:
+        case SYSTEM_EVENT_ETH_GOT_IP:
+        case SYSTEM_EVENT_ETH_STOP:
+            ethernet::eth_event_handler(ctx, event);
+            break;
+        case SYSTEM_EVENT_STA_START:
+        case SYSTEM_EVENT_STA_STOP:
+        case SYSTEM_EVENT_STA_CONNECTED:
+        case SYSTEM_EVENT_STA_DISCONNECTED:
+        case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
+        case SYSTEM_EVENT_STA_GOT_IP:
+        case SYSTEM_EVENT_STA_LOST_IP:
+        case SYSTEM_EVENT_STA_WPS_ER_SUCCESS:
+        case SYSTEM_EVENT_STA_WPS_ER_FAILED:
+        case SYSTEM_EVENT_STA_WPS_ER_TIMEOUT:
+        case SYSTEM_EVENT_STA_WPS_ER_PIN:
+        case SYSTEM_EVENT_STA_WPS_ER_PBC_OVERLAP:
+            espnowhandler::event_handler(ctx, event);
+        default:
+            break;
+    }
+    return ESP_OK;
+}
+
+
 
 
 void app_main() {
@@ -144,12 +174,15 @@ void app_main() {
     nvs_flash_init();
     handler.init();
 
+    ESP_ERROR_CHECK(esp_event_loop_init(event_handler, nullptr));
 
     xTaskCreate(uart_task, "uart_task", 2048, nullptr, 10, nullptr);
 
     int ret = ethernet::init_ethernet();
-    if(ret == ESP_OK) {
+    if (ret == ESP_OK) {
+//        ethernet::register_callback(eth_data_callback);
         xTaskCreate(ethernet::udp_server_task, "udp_server_task", 4096, nullptr, (tskIDLE_PRIORITY + 2), nullptr);
+
     }
 }
 
