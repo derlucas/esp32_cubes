@@ -6,13 +6,8 @@
 #include "esp_event.h"
 #include "driver/uart.h"
 #include "nvs_flash.h"
-#include "eth_phy/phy_lan8720.h"
-#include "driver/gpio.h"
-#include "tcpip_adapter.h"
-#include "lwip/err.h"
-#include "lwip/sockets.h"
-#include "lwip/sys.h"
-#include <lwip/netdb.h>
+
+#include "esp_eth.h"
 
 #define LOG_LOCAL_LEVEL  3
 

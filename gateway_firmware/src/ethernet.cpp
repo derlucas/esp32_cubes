@@ -1,6 +1,5 @@
 
 #include <esp_eth.h>
-#include <eth_phy/phy_lan8720.h>
 #include <tcpip_adapter.h>
 #include <esp_event.h>
 #include <esp_event_loop.h>
@@ -8,11 +7,13 @@
 #include <lwip/sockets.h>
 #include <lwip/sys.h>
 #include <lwip/netdb.h>
+#include "tcpip_adapter.h"
 
 #define LOG_LOCAL_LEVEL  3
 #include <esp_log.h>
 #include <cstring>
 #include "ethernet.h"
+#include "artnet.h"
 
 static const char *TAG = "gw-ethernet";
 EventGroupHandle_t ethernet::eth_event_group = 0;
@@ -53,41 +54,13 @@ esp_err_t ethernet::eth_event_handler(void *ctx, system_event_t *event) {
     return ESP_OK;
 }
 
-void ethernet::phy_device_power_enable_via_gpio(bool enable) {
-    if (!enable) {
-        phy_lan8720_default_ethernet_config.phy_power_enable(false);
-    }
-
-    gpio_pad_select_gpio(GPIO_NUM_5);
-    gpio_set_direction(GPIO_NUM_5, GPIO_MODE_OUTPUT);
-    gpio_set_level(GPIO_NUM_5, (int) enable);
-
-    // Allow the power up/down to take effect, min 300us
-    vTaskDelay(1);
-
-    if (enable) {
-        phy_lan8720_default_ethernet_config.phy_power_enable(true);
-    }
-}
-
-void ethernet::eth_gpio_config_rmii() {
-    // RMII data pins are fixed:
-    // TXD0 = GPIO19
-    // TXD1 = GPIO22
-    // TX_EN = GPIO21
-    // RXD0 = GPIO25
-    // RXD1 = GPIO26
-    // CLK == GPIO0
-    phy_rmii_configure_data_interface_pins();
-    // MDC is GPIO 23, MDIO is GPIO 18
-    phy_rmii_smi_configure_pins(GPIO_NUM_23, GPIO_NUM_18);
-}
 
 void ethernet::udp_server_task(void *pvParameters) {
     char rx_buffer[1500];
     char addr_str[128];
     int addr_family;
     int ip_protocol;
+
 
     while (1) {
 
@@ -97,7 +70,7 @@ void ethernet::udp_server_task(void *pvParameters) {
         struct sockaddr_in dest_addr{};
         dest_addr.sin_addr.s_addr = htonl(INADDR_ANY);
         dest_addr.sin_family = AF_INET;
-        dest_addr.sin_port = htons(1234);
+        dest_addr.sin_port = htons(ART_NET_PORT);
         addr_family = AF_INET;
         ip_protocol = IPPROTO_IP;
         inet_ntoa_r(dest_addr.sin_addr, addr_str, sizeof(addr_str) - 1);
@@ -114,7 +87,7 @@ void ethernet::udp_server_task(void *pvParameters) {
         if (err < 0) {
             ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
         }
-        ESP_LOGI(TAG, "Socket bound, port %d", 1234);
+        ESP_LOGI(TAG, "Socket bound, port %d", ART_NET_PORT);
 
         while (1) {
 
@@ -128,7 +101,8 @@ void ethernet::udp_server_task(void *pvParameters) {
                 ESP_LOGE(TAG, "recvfrom failed: errno %d", errno);
                 break;
             }
-                // Data received
+
+            // Data received
             else {
                 // Get the sender's ip address as string
 //                if (source_addr.sin6_family == PF_INET) {
@@ -141,13 +115,20 @@ void ethernet::udp_server_task(void *pvParameters) {
 //                ESP_LOGI(TAG, "Received %d bytes from %s:", len, addr_str);
 //                ESP_LOGI(TAG, "%s", rx_buffer);
 
+                uint16_t opcode = artnet::parse_udp_buffer(rx_buffer, sizeof(rx_buffer), (struct sockaddr_in *)&source_addr);
 
+                if(opcode == ART_POLL) {
 
-                int err = sendto(sock, rx_buffer, len, 0, (struct sockaddr *)&source_addr, sizeof(source_addr));
-                if (err < 0) {
-                    ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
-                    break;
+                    artnet::artnet_reply_s *replyS = artnet::get_reply();
+
+                    err = sendto(sock, (uint8_t *)replyS, sizeof(artnet::artnet_reply_s), 0,
+                            (struct sockaddr *)&source_addr, sizeof(source_addr));
+
+                    if (err < 0) {
+                        ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
+                    }
                 }
+
             }
         }
 
@@ -162,31 +143,34 @@ void ethernet::udp_server_task(void *pvParameters) {
 }
 
 esp_err_t ethernet::init_ethernet() {
+
+    artnet::init_poll_reply();
+
     eth_event_group = xEventGroupCreate();
 
-    eth_config_t config = phy_lan8720_default_ethernet_config;
+    //eth_config_t config = phy_lan8720_default_ethernet_config;
     esp_err_t ret = ESP_OK;
 
     /* Initialize adapter */
     tcpip_adapter_init();
-//    ret = esp_event_loop_init(ethernet::eth_event_handler, nullptr);
-//    if(ret != ESP_OK) {
-//        ESP_LOGE(TAG, "error esp event loop %d", ret);
-//        return ret;
-//    }
 
-    config.phy_addr = PHY0;
-    config.gpio_config = eth_gpio_config_rmii;
-    config.tcpip_input = tcpip_adapter_eth_input;
-    config.phy_power_enable = phy_device_power_enable_via_gpio;
-    config.clock_mode = ETH_CLOCK_GPIO17_OUT;
 
-    /* Initialize ethernet */
-    ret = esp_eth_init(&config);
-    if (ret != ESP_OK)
-        return ret;
+    eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+    eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
+    phy_config.phy_addr = 0;
+    phy_config.reset_gpio_num = 5;
 
-    ret = esp_eth_enable();
+    mac_config.smi_mdc_gpio_num = 23;
+    mac_config.smi_mdio_gpio_num = 18;
+    esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
+    esp_eth_phy_t *phy = esp_eth_phy_new_lan8720(&phy_config);
+
+    esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
+    esp_eth_handle_t eth_handle = NULL;
+    ESP_ERROR_CHECK(esp_eth_driver_install(&config, &eth_handle));
+    
+    ret = esp_eth_start(eth_handle);
+
     vTaskDelay(100 / portTICK_PERIOD_MS);
     return ret;
 }
