@@ -1,6 +1,7 @@
 #ifndef GATEWAY_FIRMWARE_ESPNOWHANDLER_H
 #define GATEWAY_FIRMWARE_ESPNOWHANDLER_H
 
+#include "esp_now.h"
 
 class espnowhandler {
 
@@ -20,6 +21,21 @@ private:
 
     static void wifi_init(void);
 
+    static uint32_t commandcounter;
+
+    /* User defined field of ESPNOW data */
+    typedef struct {
+        uint16_t preamble;
+        uint8_t uid;
+        uint32_t commandcounter;
+        uint8_t command;
+        uint8_t crc;
+        uint8_t payload[4];
+    } lightcontrol_espnow_data_t;
+
+    static lightcontrol_espnow_data_t *espnow_data;
+
+    static uint8_t broadcast_mac[ESP_NOW_ETH_ALEN];
 
 };
 

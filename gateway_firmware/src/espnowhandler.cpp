@@ -8,7 +8,7 @@
 #include "esp_event_loop.h"
 #include "tcpip_adapter.h"
 #include "esp_wifi.h"
-#include "esp_now.h"
+
 #include "rom/crc.h"
 
 #define LOG_LOCAL_LEVEL  1
@@ -23,20 +23,9 @@
 #define COMMAND_DEF_COLOR   0x03
 
 static const char *TAG = "gateway-espnow";
-static uint8_t broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
-static uint32_t commandcounter;
-
-/* User defined field of ESPNOW data */
-typedef struct {
-    uint16_t preamble;
-    uint8_t uid;
-    uint32_t commandcounter;
-    uint8_t command;
-    uint8_t crc;
-    uint8_t payload[4];
-} lightcontrol_espnow_data_t;
-
-static lightcontrol_espnow_data_t *espnow_data;
+uint8_t espnowhandler::broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+uint32_t espnowhandler::commandcounter = 0;
+espnowhandler::lightcontrol_espnow_data_t *espnowhandler::espnow_data;
 
 /**
  * send blackout command via ESP-NOW
