@@ -105,15 +105,30 @@ void uart_task(void *arg) {
     vTaskDelete(nullptr);
 }
 
-static esp_err_t event_handler(void *ctx, system_event_t *event) {
+void demo_task(void *arg) {
+    int uid = 255, fadetime = 0, red = 0, green = 0, blue = 0;
+
+    for (;;) {    
+        espnowhandler::send_color(uid, fadetime, red, green, blue);
+        //ESP_LOGI(TAG, "red = %d\n", red);
+        red++;
+        red %= 255;
+
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+    }
+
+    vTaskDelete(nullptr);
+}
+
+/* static esp_err_t event_handler(void *ctx, system_event_t *event) {
     switch (event->event_id) {
         case SYSTEM_EVENT_ETH_CONNECTED:
         case SYSTEM_EVENT_ETH_DISCONNECTED:
         case SYSTEM_EVENT_ETH_START:
         case SYSTEM_EVENT_ETH_GOT_IP:
         case SYSTEM_EVENT_ETH_STOP:
-            ethernet::eth_event_handler(ctx, event);
-            break;
+            //ethernet::eth_event_handler(ctx, event);
+            //break;
         case SYSTEM_EVENT_STA_START:
         case SYSTEM_EVENT_STA_STOP:
         case SYSTEM_EVENT_STA_CONNECTED:
@@ -132,12 +147,16 @@ static esp_err_t event_handler(void *ctx, system_event_t *event) {
     }
     return ESP_OK;
 }
-
+ */
 
 
 
 void app_main() {
+    nvs_flash_init();
+
     esp_log_level_set(TAG, ESP_LOG_INFO);
+
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     /* Configure parameters of an UART driver,
      * communication pins and install the driver */
@@ -152,8 +171,8 @@ void app_main() {
     };
     uart_param_config(UART_NUM_0, &uart_config);
 
-    esp_log_level_set(TAG, ESP_LOG_DEBUG);
     uart_set_pin(UART_NUM_0, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+
     //Install UART driver, and get the queue.
     uart_driver_install(UART_NUM_0, BUF_SIZE * 2, BUF_SIZE * 2, 20, &uart0_queue, 0);
 
@@ -164,17 +183,14 @@ void app_main() {
 
     ESP_LOGI(TAG, "Initializing Gateway...\n");
     nvs_flash_init();
-    espnowhandler::init();
-
-    ESP_ERROR_CHECK(esp_event_loop_init(event_handler, nullptr));
+    espnowhandler::init();    
 
     xTaskCreate(uart_task, "uart_task", 2048, nullptr, 10, nullptr);
+    xTaskCreate(demo_task, "demo_task", 2048, nullptr, 10, nullptr);
 
     int ret = ethernet::init_ethernet();
     if (ret == ESP_OK) {
-//        ethernet::register_callback(eth_data_callback);
         xTaskCreate(ethernet::udp_server_task, "udp_server_task", 4096, nullptr, (tskIDLE_PRIORITY + 2), nullptr);
-
     }
 }
 

@@ -1,8 +1,10 @@
 #ifndef GATEWAY_FIRMWARE_ETHERNET_H
 #define GATEWAY_FIRMWARE_ETHERNET_H
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include <esp_err.h>
-#include <freertos/event_groups.h>
+#include <esp_event.h>
 
 
 class ethernet {
@@ -11,11 +13,16 @@ public:
 
     static esp_err_t init_ethernet();
     static void udp_server_task(void *pvParameters);
-    static esp_err_t eth_event_handler(void *ctx, system_event_t *event);
+    //static esp_err_t eth_event_handler(void *ctx, system_event_t *event);
 
 
 private:
 
+    static void eth_event_handler(void *arg, esp_event_base_t event_base,
+                                    int32_t event_id, void *event_data);
+    static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
+                                    int32_t event_id, void *event_data);
+                                    
     static void phy_device_power_enable_via_gpio(bool enable);
     static void eth_gpio_config_rmii();
 
