@@ -10,10 +10,12 @@
 #include "esp_eth.h"
 
 #define LOG_LOCAL_LEVEL  3
+#define DEVICE_COUNT_DEFAULT 51
 
 #include <esp_log.h>
 #include "ethernet.h"
 #include "espnowhandler.h"
+#include "artnet.h"
 
 
 #define PATTERN_LENGTH  (1)         //length of the pattern ("X")
@@ -105,7 +107,7 @@ void uart_task(void *arg) {
     vTaskDelete(nullptr);
 }
 
-void demo_task(void *arg) {
+/* void demo_task(void *arg) {
     int uid = 255, fadetime = 0, red = 0, green = 0, blue = 0;
 
     for (;;) {    
@@ -118,37 +120,7 @@ void demo_task(void *arg) {
     }
 
     vTaskDelete(nullptr);
-}
-
-/* static esp_err_t event_handler(void *ctx, system_event_t *event) {
-    switch (event->event_id) {
-        case SYSTEM_EVENT_ETH_CONNECTED:
-        case SYSTEM_EVENT_ETH_DISCONNECTED:
-        case SYSTEM_EVENT_ETH_START:
-        case SYSTEM_EVENT_ETH_GOT_IP:
-        case SYSTEM_EVENT_ETH_STOP:
-            //ethernet::eth_event_handler(ctx, event);
-            //break;
-        case SYSTEM_EVENT_STA_START:
-        case SYSTEM_EVENT_STA_STOP:
-        case SYSTEM_EVENT_STA_CONNECTED:
-        case SYSTEM_EVENT_STA_DISCONNECTED:
-        case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
-        case SYSTEM_EVENT_STA_GOT_IP:
-        case SYSTEM_EVENT_STA_LOST_IP:
-        case SYSTEM_EVENT_STA_WPS_ER_SUCCESS:
-        case SYSTEM_EVENT_STA_WPS_ER_FAILED:
-        case SYSTEM_EVENT_STA_WPS_ER_TIMEOUT:
-        case SYSTEM_EVENT_STA_WPS_ER_PIN:
-        case SYSTEM_EVENT_STA_WPS_ER_PBC_OVERLAP:
-            espnowhandler::event_handler(ctx, event);
-        default:
-            break;
-    }
-    return ESP_OK;
-}
- */
-
+} */
 
 
 void app_main() {
@@ -184,11 +156,12 @@ void app_main() {
     ESP_LOGI(TAG, "Initializing Gateway...\n");
     nvs_flash_init();
     espnowhandler::init();    
+    artnet::set_listen_universe(5);
 
     xTaskCreate(uart_task, "uart_task", 2048, nullptr, 10, nullptr);
-    xTaskCreate(demo_task, "demo_task", 2048, nullptr, 10, nullptr);
+    //xTaskCreate(demo_task, "demo_task", 2048, nullptr, 10, nullptr);
 
-    int ret = ethernet::init_ethernet();
+    int ret = ethernet::init_ethernet(DEVICE_COUNT_DEFAULT);
     if (ret == ESP_OK) {
         xTaskCreate(ethernet::udp_server_task, "udp_server_task", 4096, nullptr, (tskIDLE_PRIORITY + 2), nullptr);
     }

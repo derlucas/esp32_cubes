@@ -11,7 +11,7 @@ class ethernet {
 
 public:
 
-    static esp_err_t init_ethernet();
+    static esp_err_t init_ethernet(uint8_t deviceCount);
     static void udp_server_task(void *pvParameters);
     //static esp_err_t eth_event_handler(void *ctx, system_event_t *event);
 
@@ -28,6 +28,8 @@ private:
 
     static EventGroupHandle_t eth_event_group;
     static const int GOTIP_BIT;
+
+    static uint8_t deviceCount;
 
 };
 
