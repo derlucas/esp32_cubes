@@ -20,6 +20,9 @@ private:
 
 
     static void wifi_init(void);
+    static void msg_send_cb(const uint8_t* mac, esp_now_send_status_t sendStatus);
+    static esp_err_t esp_now_send_wrapper(const uint8_t *peer_addr, const uint8_t *data, size_t len);
+
 
     static uint32_t commandcounter;
 
@@ -36,6 +39,9 @@ private:
     static lightcontrol_espnow_data_t *espnow_data;
 
     static uint8_t broadcast_mac[ESP_NOW_ETH_ALEN];
+
+    static EventGroupHandle_t espnow_event_group;
+    static const int SEND_SUCCESS_BIT;
 
 };
 

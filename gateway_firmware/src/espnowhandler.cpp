@@ -1,5 +1,6 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include <stdlib.h>
 #include <assert.h>
@@ -9,7 +10,6 @@
 #include "tcpip_adapter.h"
 #include "esp_wifi.h"
 
-#include "rom/crc.h"
 
 #define LOG_LOCAL_LEVEL  1
 #include "esp_log.h"
@@ -26,6 +26,33 @@ static const char *TAG = "gateway-espnow";
 uint8_t espnowhandler::broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 uint32_t espnowhandler::commandcounter = 0;
 espnowhandler::lightcontrol_espnow_data_t *espnowhandler::espnow_data;
+EventGroupHandle_t espnowhandler::espnow_event_group = 0;
+const int espnowhandler::SEND_SUCCESS_BIT = BIT0;
+
+//xEventGroupClearBits(espnowhandler::espnow_event_group, SEND_SUCCESS_BIT);
+//xEventGroupSetBits(espnowhandler::espnow_event_group, SEND_SUCCESS_BIT);
+//xEventGroupWaitBits(espnowhandler::espnow_event_group, SEND_SUCCESS_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
+
+void espnowhandler::msg_send_cb(const uint8_t* mac, esp_now_send_status_t sendStatus) {
+    xEventGroupSetBits(espnowhandler::espnow_event_group, SEND_SUCCESS_BIT);
+    switch (sendStatus) {
+        case ESP_NOW_SEND_SUCCESS:
+            ESP_LOGI(TAG, "esp send done status = success");
+            break;
+        case ESP_NOW_SEND_FAIL:
+            ESP_LOGI(TAG, "esp send done status = fail");
+            break;
+        default:
+        break;
+    }
+}
+
+
+esp_err_t espnowhandler::esp_now_send_wrapper(const uint8_t *peer_addr, const uint8_t *data, size_t len) {
+    xEventGroupWaitBits(espnowhandler::espnow_event_group, SEND_SUCCESS_BIT, pdTRUE, pdTRUE, 120 / portTICK_PERIOD_MS);
+    return esp_now_send(peer_addr, data, len);
+}
+
 
 /**
  * send blackout command via ESP-NOW
@@ -41,14 +68,17 @@ void espnowhandler::send_blackout(bool blackout) {
     espnow_data->commandcounter = ++commandcounter;
     espnow_data->payload[0] = (uint8_t)(blackout ? 0x01 : 0x00);
 
-    esp_now_send(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
-    vTaskDelay(20 / portTICK_PERIOD_MS);
+    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
+    //vTaskDelay(20 / portTICK_PERIOD_MS);
+    
     espnow_data->commandcounter = ++commandcounter;
-    esp_now_send(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
-    vTaskDelay(20 / portTICK_PERIOD_MS);
+    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
+    //vTaskDelay(20 / portTICK_PERIOD_MS);
+    
     espnow_data->commandcounter = ++commandcounter;
-    esp_now_send(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
+    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
     ESP_LOGD(TAG, "send blackout %d\n", espnow_data->payload[0]);
+    
 }
 
 /**
@@ -70,7 +100,7 @@ void espnowhandler::send_color(uint8_t uid, uint8_t fadetime, uint8_t red, uint8
     espnow_data->payload[1] = red;
     espnow_data->payload[2] = green;
     espnow_data->payload[3] = blue;
-    esp_now_send(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
+    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
     ESP_LOGD(TAG, "send color %d,%d,%d,%d\n", espnow_data->payload[0],espnow_data->payload[1],espnow_data->payload[2],espnow_data->payload[3]);
 }
 
@@ -81,7 +111,7 @@ void espnowhandler::send_default_color_command(uint8_t uid) {
     espnow_data->command = COMMAND_DEF_COLOR;
     espnow_data->commandcounter = ++commandcounter;
     espnow_data->payload[0] = 1;
-    esp_now_send(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
+    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
     ESP_LOGD(TAG, "send default color to uid %d\n", espnow_data->uid);
 }
 
@@ -149,6 +179,9 @@ esp_err_t espnowhandler::init() {
     ESP_ERROR_CHECK( esp_now_add_peer(peeer) );
     free(peeer);
 
+    espnow_event_group = xEventGroupCreate();
+    xEventGroupSetBits(espnow_event_group, SEND_SUCCESS_BIT);
+    esp_now_register_send_cb(msg_send_cb);
     
 
     return ESP_OK;
