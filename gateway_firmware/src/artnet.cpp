@@ -10,6 +10,7 @@
 static const char *TAG = "gw-artnet";
 
 artnet::artnet_reply_s artnet::artpoll_reply_package;
+uint8_t artnet::dmxData[DMX_SIZE];
 
 uint16_t artnet::parse_udp_buffer(const char *buffer, int len, sockaddr_in *source) {
 
@@ -41,7 +42,18 @@ uint16_t artnet::parse_udp_buffer(const char *buffer, int len, sockaddr_in *sour
             dmx[2] = (uint8_t)buffer[ART_DMX_START+2];
             dmx[3] = (uint8_t)buffer[ART_DMX_START+3];
 
-            ESP_LOGI(TAG, "DMX seq=%d, universe=%d, len=%d, ch1=%d, ch2=%d, ch3=%d, ch4=%d,", sequence, incomingUniverse, dmxDataLength, dmx[0], dmx[1], dmx[2], dmx[3]);
+            if(dmxDataLength > 0 && dmxDataLength <= DMX_SIZE) {
+            
+                memcpy(artnet::dmxData, buffer+ART_DMX_START, dmxDataLength);
+                
+                ESP_LOGI(TAG, "DMX seq=%d, universe=%d, len=%d, ch1=%d, ch2=%d, ch3=%d, ch4=%d,", sequence, incomingUniverse, dmxDataLength,
+                         artnet::dmxData[0],artnet::dmxData[1],artnet::dmxData[2],artnet::dmxData[3]);
+
+            } else {
+                ESP_LOGE(TAG, "wrong DMX Data Length");
+            }
+
+            
 
             //if (artDmxCallback) (*artDmxCallback)(incomingUniverse, dmxDataLength, sequence, artnetPacket + ART_DMX_START, remoteIP);
             //TODO get DMX Data
@@ -64,15 +76,10 @@ uint16_t artnet::parse_udp_buffer(const char *buffer, int len, sockaddr_in *sour
 
             memcpy(artpoll_reply_package.ip, node_ip_address, sizeof(artpoll_reply_package.ip));
 
-            artpoll_reply_package.bindip[0] = node_ip_address[0];
-            artpoll_reply_package.bindip[1] = node_ip_address[1];
-            artpoll_reply_package.bindip[2] = node_ip_address[2];
-            artpoll_reply_package.bindip[3] = node_ip_address[3];
-
-
-
-        } else if (opcode == ART_SYNC) {
-//            if (artSyncCallback) (*artSyncCallback)(remoteIP);
+            artpoll_reply_package.bindIp[0] = node_ip_address[0];
+            artpoll_reply_package.bindIp[1] = node_ip_address[1];
+            artpoll_reply_package.bindIp[2] = node_ip_address[2];
+            artpoll_reply_package.bindIp[3] = node_ip_address[3];
         }
 
         return opcode;
@@ -98,9 +105,11 @@ void artnet::init_poll_reply() {
     artnet::artpoll_reply_package.opCode = ART_POLL_REPLY;
     artnet::artpoll_reply_package.port =  ART_NET_PORT;
 
-    memset(artnet::artpoll_reply_package.goodinput, 0x08, 4);
-    memset(artnet::artpoll_reply_package.goodoutput, 0x80, 4);
-    memset(artnet::artpoll_reply_package.porttypes, 0xc0, 4);
+    memset(artnet::artpoll_reply_package.goodInput, 0x08, 4);       // Set BIT3 = Input is disabled
+    memset(artnet::artpoll_reply_package.goodOutput, 0x80, 4);      // Set BIT7 = Data is being transmitted
+    
+    memset(artnet::artpoll_reply_package.portTypes, 0x00, 4);
+    artnet::artpoll_reply_package.portTypes[0] = 0x80;  // port 0 can output from ArtNet
     
 
     uint8_t shortname [18];
@@ -110,42 +119,37 @@ void artnet::init_poll_reply() {
 
     sprintf((char *)shortname, "artnet arduino");
     sprintf((char *)longname, "Art-Net -> Arduino Bridge");
-    memcpy(artnet::artpoll_reply_package.shortname, shortname, sizeof(shortname));
-    memcpy(artnet::artpoll_reply_package.longname, longname, sizeof(longname));
+    memcpy(artnet::artpoll_reply_package.shortName, shortname, sizeof(shortname));
+    memcpy(artnet::artpoll_reply_package.longName, longname, sizeof(longname));
 
-    artnet::artpoll_reply_package.etsaman[0] = 0;
-    artnet::artpoll_reply_package.etsaman[1] = 0;
-    artnet::artpoll_reply_package.verH       = 1;
-    artnet::artpoll_reply_package.ver        = 0;
+    artnet::artpoll_reply_package.estaManLo  = 0;
+    artnet::artpoll_reply_package.estaManHi  = 0;
+    artnet::artpoll_reply_package.versInfoH  = 1;
+    artnet::artpoll_reply_package.versInfoL  = 0;
     artnet::artpoll_reply_package.subH       = 0;
     artnet::artpoll_reply_package.sub        = 0;
     artnet::artpoll_reply_package.oemH       = 0;
     artnet::artpoll_reply_package.oem        = 0xFF;
     artnet::artpoll_reply_package.ubea       = 0;
-    artnet::artpoll_reply_package.status     = 0xd2;
-    artnet::artpoll_reply_package.swvideo    = 0;
-    artnet::artpoll_reply_package.swmacro    = 0;
-    artnet::artpoll_reply_package.swremote   = 0;
-    artnet::artpoll_reply_package.style      = 0;
+    artnet::artpoll_reply_package.status1    = 0xd2;    // Normal Mode, All Port-Address set by front panel
+    artnet::artpoll_reply_package.swVideo    = 0;
+    artnet::artpoll_reply_package.swMacro    = 0;
+    artnet::artpoll_reply_package.swRemote   = 0;
+    artnet::artpoll_reply_package.style      = 0;       // A DMX to / from Art-Net device
 
-    artnet::artpoll_reply_package.numbportsH = 0;
-    artnet::artpoll_reply_package.numbports  = 4;
+    artnet::artpoll_reply_package.numPortsHi = 0;
+    artnet::artpoll_reply_package.numPortsLo = 1;
     artnet::artpoll_reply_package.status2    = 0x08;
-
-//    artnet::artpoll_reply_package.bindip[0] = node_ip_address[0];
-//    artnet::artpoll_reply_package.bindip[1] = node_ip_address[1];
-//    artnet::artpoll_reply_package.bindip[2] = node_ip_address[2];
-//    artnet::artpoll_reply_package.bindip[3] = node_ip_address[3];
 
     uint8_t swin[4]  = {0x01,0x02,0x03,0x04};
     uint8_t swout[4] = {0x01,0x02,0x03,0x04};
     for(uint8_t i = 0; i < 4; i++)
     {
-        artnet::artpoll_reply_package.swout[i] = swout[i];
-        artnet::artpoll_reply_package.swin[i] = swin[i];
+        artnet::artpoll_reply_package.swOut[i] = swout[i];
+        artnet::artpoll_reply_package.swIn[i] = swin[i];
     }
 
-    sprintf((char *)artnet::artpoll_reply_package.nodereport, "%i DMX output universes active.", artnet::artpoll_reply_package.numbports);
+    sprintf((char *)artnet::artpoll_reply_package.nodereport, "%i DMX output universes active.", artnet::artpoll_reply_package.numPortsLo);
 }
 
 //void artnet::printPacketHeader()

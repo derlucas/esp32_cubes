@@ -18,6 +18,7 @@ class artnet {
 #define ART_POLL_REPLY 0x2100
 #define ART_DMX 0x5000
 #define ART_SYNC 0x5200
+
 // Buffers
 #define MAX_BUFFER_ARTNET 530
 // Packet
@@ -33,35 +34,36 @@ public:
         uint16_t opCode;
         uint8_t ip[4];
         uint16_t port;
-        uint8_t verH;
-        uint8_t ver;
+        uint8_t versInfoH;
+        uint8_t versInfoL;
         uint8_t subH;
         uint8_t sub;
         uint8_t oemH;
         uint8_t oem;
         uint8_t ubea;
-        uint8_t status;
-        uint8_t etsaman[2];
-        uint8_t shortname[18];
-        uint8_t longname[64];
+        uint8_t status1;
+        uint8_t estaManLo;
+        uint8_t estaManHi;
+        uint8_t shortName[18];
+        uint8_t longName[64];
         uint8_t nodereport[64];
-        uint8_t numbportsH;
-        uint8_t numbports;
-        uint8_t porttypes[4];//max of 4 ports per node
-        uint8_t goodinput[4];
-        uint8_t goodoutput[4];
-        uint8_t swin[4];
-        uint8_t swout[4];
-        uint8_t swvideo;
-        uint8_t swmacro;
-        uint8_t swremote;
-        uint8_t sp1;
-        uint8_t sp2;
-        uint8_t sp3;
+        uint8_t numPortsHi;
+        uint8_t numPortsLo;
+        uint8_t portTypes[4];//max of 4 ports per node
+        uint8_t goodInput[4];
+        uint8_t goodOutput[4];
+        uint8_t swIn[4];
+        uint8_t swOut[4];
+        uint8_t swVideo;
+        uint8_t swMacro;
+        uint8_t swRemote;
+        uint8_t spare1;
+        uint8_t spare2;
+        uint8_t spare3;
         uint8_t style;
         uint8_t mac[6];
-        uint8_t bindip[4];
-        uint8_t bindindex;
+        uint8_t bindIp[4];
+        uint8_t bindIndex;
         uint8_t status2;
         uint8_t filler[26];
     } __attribute__((packed)) artnet_reply_s;
@@ -87,7 +89,7 @@ private:
 //    static uint16_t incomingUniverse;
 //    static uint16_t dmxDataLength;
 //
-//    static uint8_t dmxData[DMX_SIZE];
+    static uint8_t dmxData[DMX_SIZE];
 
 
 };
