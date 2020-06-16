@@ -74,6 +74,7 @@ public:
 
     static artnet_reply_s * get_reply();
     static uint8_t * get_dmx_data();
+    static void set_listen_universe(const uint16_t universe);
 
 
 private:
@@ -82,13 +83,9 @@ private:
 
     static artnet_reply_s artpoll_reply_package;
 
-//    static uint8_t artnetPacket[MAX_BUFFER_ARTNET];
-//    static uint16_t packetSize;
-//    static uint16_t opcode;
-//    static uint8_t sequence;
-//    static uint16_t incomingUniverse;
-//    static uint16_t dmxDataLength;
-//
+    static uint16_t lastDMXReceivedLength;
+
+    static uint16_t listenUniverse;     // default is universe 5
     static uint8_t dmxData[DMX_SIZE];
 
 

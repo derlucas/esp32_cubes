@@ -5,82 +5,89 @@
 #include <tcpip_adapter.h>
 #include "artnet.h"
 
+
 #define LOG_LOCAL_LEVEL  3
 #include <esp_log.h>
 static const char *TAG = "gw-artnet";
 
 artnet::artnet_reply_s artnet::artpoll_reply_package;
 uint8_t artnet::dmxData[DMX_SIZE];
+uint16_t artnet::listenUniverse;
+uint16_t artnet::lastDMXReceivedLength = 0;
+
+void artnet::set_listen_universe(const uint16_t universe) {
+    artnet::listenUniverse = universe;
+}
 
 uint16_t artnet::parse_udp_buffer(const char *buffer, int len, sockaddr_in *source) {
 
-    //if (len <= MAX_BUFFER_ARTNET && len > 0) {
-    if (len > 0) {
+    if (len <= 17) { // at least the ArtDMX 10 fields + 1 Byte DMX Data
+        return 0;
+    }
 
-        // Check that packetID is "Art-Net" else ignore
-        for (uint8_t i = 0 ; i < 8 ; i++) {
-            if (buffer[i] != ART_NET_ID[i]) {
-                return 0;
-            }
+    // Check that packetID is "Art-Net" else ignore
+    for (uint8_t i = 0 ; i < 8 ; i++) {
+        if (buffer[i] != ART_NET_ID[i]) {
+            return 0;
         }
+    }
 
-        const uint16_t opcode = buffer[8] | (buffer[9] << 8);
+    const uint16_t opcode = buffer[8] | (buffer[9] << 8);
 
-        if (opcode == ART_DMX) {
+    // buffer[10] = ProtVerHi
+    // buffer[11] = ProtVerLo
+    // buffer[13] = Physical
 
-            uint8_t sequence;
-            uint16_t incomingUniverse;
-            uint16_t dmxDataLength;
+    if (opcode == ART_DMX) {
 
-            sequence = buffer[12];
-            incomingUniverse = buffer[14] | buffer[15] << 8;
-            dmxDataLength = buffer[17] | buffer[16] << 8;
+        uint8_t sequence;
+        uint16_t incomingUniverse;
+        uint16_t dmxDataLength;
 
-            uint8_t dmx[4];
-            dmx[0] = (uint8_t)buffer[ART_DMX_START];
-            dmx[1] = (uint8_t)buffer[ART_DMX_START+1];
-            dmx[2] = (uint8_t)buffer[ART_DMX_START+2];
-            dmx[3] = (uint8_t)buffer[ART_DMX_START+3];
+        sequence = buffer[12];
+        incomingUniverse = buffer[14] | buffer[15] << 8;
+        dmxDataLength = buffer[17] | buffer[16] << 8;
 
+        if(artnet::listenUniverse == incomingUniverse) {
             if(dmxDataLength > 0 && dmxDataLength <= DMX_SIZE) {
-            
+                if(artnet::lastDMXReceivedLength != dmxDataLength) {
+                    // reset dmx Data
+                    memset(artnet::dmxData, 0x00, DMX_SIZE);
+                }
                 memcpy(artnet::dmxData, buffer+ART_DMX_START, dmxDataLength);
-                
-                ESP_LOGI(TAG, "DMX seq=%d, universe=%d, len=%d, ch1=%d, ch2=%d, ch3=%d, ch4=%d,", sequence, incomingUniverse, dmxDataLength,
-                         artnet::dmxData[0],artnet::dmxData[1],artnet::dmxData[2],artnet::dmxData[3]);
+                //ESP_LOGI(TAG, "DMX seq=%d, universe=%d, len=%d, ch1=%d, ch2=%d, ch3=%d, ch4=%d,", sequence, incomingUniverse, dmxDataLength,
+                //        artnet::dmxData[0],artnet::dmxData[1],artnet::dmxData[2],artnet::dmxData[3]);
 
+                artnet::lastDMXReceivedLength = dmxDataLength;
+
+                return opcode;
             } else {
                 ESP_LOGE(TAG, "wrong DMX Data Length");
             }
-
-            
-
-            //if (artDmxCallback) (*artDmxCallback)(incomingUniverse, dmxDataLength, sequence, artnetPacket + ART_DMX_START, remoteIP);
-            //TODO get DMX Data
-
-        } else if (opcode == ART_POLL) {
-            //fill the reply struct, and then send it to the network's broadcast address
-
-            ESP_LOGI(TAG, "POLL from: %s", inet_ntoa(source->sin_addr.s_addr));
-            tcpip_adapter_ip_info_t ip;
-            if(tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip) != ESP_OK) {
-                ESP_LOGE(TAG, "error getting own IP");
-                return 0;
-            }
-
-            uint8_t node_ip_address[4];
-            node_ip_address[0] = ip.ip.addr & 0xff;
-            node_ip_address[1] = (ip.ip.addr >> 8) & 0xff;;
-            node_ip_address[2] = (ip.ip.addr >> 16) & 0xff;;
-            node_ip_address[3] = (ip.ip.addr >> 24) & 0xff;
-
-            memcpy(artpoll_reply_package.ip, node_ip_address, sizeof(artpoll_reply_package.ip));
-
-            artpoll_reply_package.bindIp[0] = node_ip_address[0];
-            artpoll_reply_package.bindIp[1] = node_ip_address[1];
-            artpoll_reply_package.bindIp[2] = node_ip_address[2];
-            artpoll_reply_package.bindIp[3] = node_ip_address[3];
         }
+
+    } else if (opcode == ART_POLL) {
+        //fill the reply struct, and then send it to the network's broadcast address
+
+        ESP_LOGI(TAG, "POLL from: %s", inet_ntoa(source->sin_addr.s_addr));
+        tcpip_adapter_ip_info_t ip;
+        if(tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip) != ESP_OK) {
+            ESP_LOGE(TAG, "error getting own IP");
+            return 0;
+        }
+
+        uint8_t node_ip_address[4];
+        node_ip_address[0] = ip.ip.addr & 0xff;
+        node_ip_address[1] = (ip.ip.addr >> 8) & 0xff;;
+        node_ip_address[2] = (ip.ip.addr >> 16) & 0xff;;
+        node_ip_address[3] = (ip.ip.addr >> 24) & 0xff;
+
+        memcpy(artpoll_reply_package.ip, node_ip_address, sizeof(artpoll_reply_package.ip));
+
+        artpoll_reply_package.bindIp[0] = node_ip_address[0];
+        artpoll_reply_package.bindIp[1] = node_ip_address[1];
+        artpoll_reply_package.bindIp[2] = node_ip_address[2];
+        artpoll_reply_package.bindIp[3] = node_ip_address[3];
 
         return opcode;
     }
@@ -93,7 +100,7 @@ artnet::artnet_reply_s *artnet::get_reply() {
 }
 
 uint8_t *artnet::get_dmx_data() {
-    return nullptr;
+    return dmxData;
 }
 
 void artnet::init_poll_reply() {
@@ -141,8 +148,11 @@ void artnet::init_poll_reply() {
     artnet::artpoll_reply_package.numPortsLo = 1;
     artnet::artpoll_reply_package.status2    = 0x08;
 
-    uint8_t swin[4]  = {0x01,0x02,0x03,0x04};
-    uint8_t swout[4] = {0x01,0x02,0x03,0x04};
+    //uint8_t swin[4]  = {0x01,0x02,0x03,0x04};
+    //uint8_t swout[4] = {0x01,0x02,0x03,0x04};
+    uint8_t swin[4]  = {0x01,0x0,0x0,0x0};
+    uint8_t swout[4] = {0x00,0x0,0x0,0x0};
+
     for(uint8_t i = 0; i < 4; i++)
     {
         artnet::artpoll_reply_package.swOut[i] = swout[i];

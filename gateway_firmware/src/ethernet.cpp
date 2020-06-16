@@ -13,11 +13,12 @@
 #include <cstring>
 #include "ethernet.h"
 #include "artnet.h"
-//#define ART_NET_PORT 6454
+#include "espnowhandler.h"
 
 static const char *TAG = "gw-ethernet";
 EventGroupHandle_t ethernet::eth_event_group = 0;
 const int ethernet::GOTIP_BIT = BIT0;
+uint8_t ethernet::deviceCount = 10;
 
 
 void ethernet::eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
@@ -112,31 +113,33 @@ void ethernet::udp_server_task(void *pvParameters) {
             if (len < 0) {
                 ESP_LOGE(TAG, "recvfrom failed: errno %d", errno);
                 break;
-            }
-
-            // Data received
-            else {
-                // Get the sender's ip address as string
-//                if (source_addr.sin6_family == PF_INET) {
-//                    inet_ntoa_r(((struct sockaddr_in *)&source_addr)->sin_addr.s_addr, addr_str, sizeof(addr_str) - 1);
-//                } else if (source_addr.sin6_family == PF_INET6) {
-//                    inet6_ntoa_r(source_addr.sin6_addr, addr_str, sizeof(addr_str) - 1);
-//                }
-//
-//                rx_buffer[len] = 0; // Null-terminate whatever we received and treat like a string...
-//                ESP_LOGI(TAG, "Received %d bytes from %s:", len, addr_str);
-//                ESP_LOGI(TAG, "%s", rx_buffer);
+            } else {
 
                 uint16_t opcode = artnet::parse_udp_buffer(rx_buffer, sizeof(rx_buffer), (struct sockaddr_in *)&source_addr);
 
                 if(opcode == ART_POLL) {
-
                     artnet::artnet_reply_s *replyS = artnet::get_reply();
 
                     err = sendto(sock, (uint8_t *)replyS, sizeof(artnet::artnet_reply_s), 0, (struct sockaddr *)&source_addr, sizeof(source_addr));
-
                     if (err < 0) {
                         ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
+                    }
+                } else if(opcode == ART_DMX) {  // received DMX Data
+                    uint8_t *dmxData = artnet::get_dmx_data();
+                    // each device has 4 DMX Channels
+                    // ESP protocol can only handle 254 channels, it is 1 based (first device is 1)
+                                    
+                    //ESP_LOGI(TAG, "deviceCount = %d", ethernet::deviceCount);
+                    
+                    for(uint8_t d=0;d<ethernet::deviceCount;d++) {
+                        uint8_t id = d+1;
+                        uint8_t fadeTime = dmxData[4 * d + 0];
+                        uint8_t red      = dmxData[4 * d + 1];
+                        uint8_t green    = dmxData[4 * d + 2];
+                        uint8_t blue     = dmxData[4 * d + 3];
+                        //ESP_LOGI(TAG, "uid = %d   ft=%d, r=%d, g=%d, b=%d", id, fadeTime, red, green, blue);
+                        espnowhandler::send_color(id, fadeTime, red, green, blue);
+                        vTaskDelay(0);
                     }
                 }
 
@@ -153,7 +156,8 @@ void ethernet::udp_server_task(void *pvParameters) {
     vTaskDelete(nullptr);
 }
 
-esp_err_t ethernet::init_ethernet() {
+esp_err_t ethernet::init_ethernet(uint8_t deviceCount) {
+    ethernet::deviceCount = deviceCount;
 
     artnet::init_poll_reply();
 
