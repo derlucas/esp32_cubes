@@ -6,8 +6,7 @@
 #include <assert.h>
 #include "esp_event.h"
 #include "nvs_flash.h"
-#include "esp_event_loop.h"
-#include "tcpip_adapter.h"
+#include "esp_netif.h"
 #include "esp_wifi.h"
 
 
@@ -127,7 +126,7 @@ esp_err_t espnowhandler::event_handler(void *ctx, system_event_t *event) {
 }
 
 void espnowhandler::wifi_init() {
-    tcpip_adapter_init();
+    
 //    ESP_ERROR_CHECK( esp_event_loop_init(example_event_handler, NULL) );
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
@@ -173,7 +172,7 @@ esp_err_t espnowhandler::init() {
     }
     memset(peeer, 0, sizeof(esp_now_peer_info_t));
     peeer->channel = ESPNOW_CHANNEL;
-    peeer->ifidx = ESP_IF_WIFI_STA;         // configure to station mode
+    peeer->ifidx = WIFI_IF_STA;         // configure to station mode
     peeer->encrypt = false;
     memcpy(peeer->peer_addr, broadcast_mac, ESP_NOW_ETH_ALEN);
     ESP_ERROR_CHECK( esp_now_add_peer(peeer) );
