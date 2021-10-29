@@ -98,5 +98,6 @@ gateway.write("C,31" + '\n');
 This will be eventually in development some time in the future.
 
 
+https://community.platformio.org/t/esp-prog-openocd-path-contains-undefined/23799/17
 
 

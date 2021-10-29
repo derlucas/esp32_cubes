@@ -1,12 +1,6 @@
-
 #include <esp_eth.h>
-#include <tcpip_adapter.h>
 #include <esp_event.h>
-#include <lwip/err.h>
-#include <lwip/sockets.h>
-#include <lwip/sys.h>
-#include <lwip/netdb.h>
-#include "tcpip_adapter.h"
+#include <esp_netif.h>
 
 #define LOG_LOCAL_LEVEL  3
 #include <esp_log.h>
@@ -55,7 +49,7 @@ void ethernet::eth_event_handler(void *arg, esp_event_base_t event_base, int32_t
 void ethernet::got_ip_event_handler(void *arg, esp_event_base_t event_base,
                                  int32_t event_id, void *event_data) {
     ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
-    const tcpip_adapter_ip_info_t *ip_info = &event->ip_info;
+    const esp_netif_ip_info_t *ip_info = &event->ip_info;
     xEventGroupSetBits(ethernet::eth_event_group, GOTIP_BIT);
 
     ESP_LOGI(TAG, "Ethernet Got IP Address");
@@ -160,16 +154,14 @@ esp_err_t ethernet::init_ethernet(uint8_t deviceCount) {
     ethernet::deviceCount = deviceCount;
 
     artnet::init_poll_reply();
-
-    tcpip_adapter_init();
     
-    ESP_ERROR_CHECK(tcpip_adapter_set_default_eth_handlers());
-    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
-
     eth_event_group = xEventGroupCreate();
 
     esp_err_t ret = ESP_OK;
+
+    // Create new default instance of esp-netif for Ethernet
+    esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
+    esp_netif_t *eth_netif = esp_netif_new(&cfg);
 
 
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
@@ -195,7 +187,16 @@ esp_err_t ethernet::init_ethernet(uint8_t deviceCount) {
     if(ret != ESP_OK) {
         ESP_LOGE(TAG, "ERROR esp_eth_driver_install\n");
     } else {
+        
+        /* attach Ethernet driver to TCP/IP stack */
+        ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handle)));
+        
         vTaskDelay(500 / portTICK_PERIOD_MS);
+
+        //ESP_ERROR_CHECK(tcpip_adapter_set_default_eth_handlers());
+        ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
+        ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
+
         ret = esp_eth_start(eth_handle);
     }
     

@@ -2,7 +2,6 @@
 #include <cstring>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_event_loop.h"
 #include "esp_event.h"
 #include "driver/uart.h"
 #include "nvs_flash.h"
@@ -128,6 +127,7 @@ void app_main() {
 
     esp_log_level_set(TAG, ESP_LOG_INFO);
 
+    ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     /* Configure parameters of an UART driver,
@@ -155,11 +155,13 @@ void app_main() {
 
     ESP_LOGI(TAG, "Initializing Gateway...\n");
     nvs_flash_init();
+    
+    
+
     espnowhandler::init();    
     artnet::set_listen_universe(5);
 
     xTaskCreate(uart_task, "uart_task", 2048, nullptr, 10, nullptr);
-    //xTaskCreate(demo_task, "demo_task", 2048, nullptr, 10, nullptr);
 
     int ret = ethernet::init_ethernet(DEVICE_COUNT_DEFAULT);
     if (ret == ESP_OK) {
