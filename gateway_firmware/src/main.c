@@ -65,12 +65,15 @@ void app_main(void) {
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
     esp_netif_t *eth_netif = esp_netif_new(&cfg);
 
+    // Set default handlers to process TCP/IP stuffs
+    ESP_ERROR_CHECK(esp_eth_set_default_handlers(eth_netif));
+
     // Init MAC and PHY configs to default
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
     eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
 
     phy_config.phy_addr = 0;
-    phy_config.reset_gpio_num = -1;
+    phy_config.reset_gpio_num = 5;
     mac_config.smi_mdc_gpio_num = 23;
     mac_config.smi_mdio_gpio_num = 18;
     mac_config.sw_reset_timeout_ms = 1000;
