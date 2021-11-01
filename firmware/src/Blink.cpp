@@ -17,6 +17,7 @@
 #define COMMAND_BLACKOUT    0x01
 #define COMMAND_COLOR       0x02
 #define COMMAND_DEF_COLOR   0x03
+#define COMMAND_COLOR_BCAST 0x04
 
 #define PREF_KEY_UID        "uid"
 #define PREF_KEY_DEFAULT_R  "dfr"
@@ -73,27 +74,30 @@ const uint8_t gamma_green[] = {
 
 uint32_t commandcounter = 0;    // this is currently not used.
 
+// this struct may not be bigger as 250 Bytes
 struct lightcontrol_espnow_data_t {
     uint16_t premable;
     uint8_t uid;
     uint32_t commandcounter;
     uint8_t command;
     uint8_t crc;
-    uint8_t payload[4];
+    uint8_t payload[4*50];      // space for 50 lights with each 4 Bytes (200 Bytes)
 };
 
+// Function declarations
 void handle_command_color(const lightcontrol_espnow_data_t &command);
-
 void handle_command_blackout(const lightcontrol_espnow_data_t &command);
-
 void handle_command_set_default_color(const lightcontrol_espnow_data_t &command);
+void handle_command_color_broadcast(const lightcontrol_espnow_data_t &command);
+void save_color_and_show_animation();
+
 
 enum OTA_MODE {
     NONE,
     SEARCHING,
     WAITING,
     UPDATING
-} otaMode = NONE;
+} otaMode;
 
 uint16_t otaWaitCounter;
 uint16_t uid;
@@ -111,6 +115,8 @@ RgbColor green(0, 255, 0);
 RgbColor blue(0, 0, 255);
 RgbColor black(0);
 RgbColor currentSetColor;
+RgbColor lastSetColor;
+lightcontrol_espnow_data_t command;
 
 #ifdef USE_PWM
 void initPWM() {
@@ -190,7 +196,6 @@ void setColor(RgbColor color) {
 void fadeTo(uint8_t duration, RgbColor targetColor) {
 
     animations.StopAll();
-
     RgbColor startColor = currentSetColor;
 
     AnimUpdateCallback animUpdate = [=](const AnimationParam &param) {
@@ -201,15 +206,8 @@ void fadeTo(uint8_t duration, RgbColor targetColor) {
 }
 
 void loadDefaultColor() {
-#ifdef UART_DEBUG
-    Serial.println("loading default color");
-#endif
-    RgbColor defaultColor = RgbColor(
-            prefs.getUChar(PREF_KEY_DEFAULT_R),
-            prefs.getUChar(PREF_KEY_DEFAULT_G),
-            prefs.getUChar(PREF_KEY_DEFAULT_B));
-
-    setColor(defaultColor);
+    setColor(RgbColor(prefs.getUChar(PREF_KEY_DEFAULT_R), prefs.getUChar(PREF_KEY_DEFAULT_G),
+                      prefs.getUChar(PREF_KEY_DEFAULT_B)));
 }
 
 /**
@@ -264,39 +262,17 @@ void startupFade() {
  * @param len
  */
 void on_receive_data(const uint8_t *mac_addr, const uint8_t *data, int len) {
-#ifdef UART_DEBUG
-    char macStr[18];
-    snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-             mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-    Serial.print("Recv from: ");
-    Serial.print(macStr);
-    Serial.printf(" len: %d\n", len);
-
-    Serial.println("data:");
-    for(int i = 0; i < len;i++) {
-        Serial.printf("data[%d]: %d\n",i,data[i]);
-    }
-#endif
-
     if (!espNowInputEnable) {
         return;
     }
 
-    lightcontrol_espnow_data_t command;
-
     if (len == sizeof(command)) {
-        memcpy(&command, data, sizeof(command));
+        memset(&command, 0, sizeof(command));       // fill with zeros
+        memcpy(&command, data, sizeof(command));    // copy received data into the structure
 
         if (command.premable != PREAMBLE) {
-#ifdef UART_DEBUG
-            Serial.println("wrong preamble");
-#endif
             return;
         }
-
-#ifdef UART_DEBUG
-        Serial.printf("command: %d, uid: %d\n", command.command, command.uid);
-#endif
 
         if (command.uid == CUBE_ADDR_BCAST || command.uid == uid) {
             switch (command.command) {
@@ -309,80 +285,81 @@ void on_receive_data(const uint8_t *mac_addr, const uint8_t *data, int len) {
                 case COMMAND_DEF_COLOR:
                     handle_command_set_default_color(command);
                     break;
+                case COMMAND_COLOR_BCAST:
+                    handle_command_color_broadcast(command);
+                    break;
             }
         }
     }
 }
 
 void handle_command_color(const lightcontrol_espnow_data_t &command) {
-#ifdef UART_DEBUG
-    Serial.printf("color command %d %d %d %d\n",command.payload[0], command.payload[1], command.payload[2], command.payload[3]);
-#endif
-
     animations.StopAll();
 
     if (command.payload[0] > 0) {
-        // fade
         fadeTo(command.payload[0], RgbColor(command.payload[1], command.payload[2], command.payload[3]));
-
     } else {
-        // switch color directly
         setColor(RgbColor(command.payload[1], command.payload[2], command.payload[3]));
     }
 }
 
-void handle_command_blackout(const lightcontrol_espnow_data_t &command) {
-#ifdef UART_DEBUG
-    Serial.println("blackout command");
-#endif
+void handle_command_color_broadcast(const lightcontrol_espnow_data_t &command) {
+    uint8_t buf_offset = (uid-1) * 4;       // uid is 1-based    
+    uint8_t controlChannel = command.payload[buf_offset+3];
+    RgbColor rgb = RgbColor(command.payload[buf_offset], command.payload[buf_offset+1], command.payload[buf_offset+2]);
 
+    if(rgb != lastSetColor) {
+        lastSetColor = rgb;     // store color to only execute command when the color differs from last update.
+        animations.StopAll();
+        setColor(rgb);
+    }
+    if(controlChannel >= 250) {
+        save_color_and_show_animation();
+    }
+}
+
+void handle_command_blackout(const lightcontrol_espnow_data_t &command) {
     if (command.payload[0] == 0x01) {
-#ifdef UART_DEBUG
-        Serial.println("blacking out");
-#endif
         blackout();
     } else {
-#ifdef UART_DEBUG
-        Serial.println("restoring color");
-#endif
         setColor(currentSetColor);
     }
 }
 
+void save_color_and_show_animation() {
+    prefs.putUChar(PREF_KEY_DEFAULT_R, currentSetColor.R);
+    prefs.putUChar(PREF_KEY_DEFAULT_G, currentSetColor.G);
+    prefs.putUChar(PREF_KEY_DEFAULT_B, currentSetColor.B);
+
+    espNowInputEnable = false;
+    const RgbColor storeColor = currentSetColor;
+
+    AnimUpdateCallback animUpdate = [=](const AnimationParam &param) {
+        if(param.progress < .1f) {
+            setColor(green);
+        } else if(param.progress < .3f) {
+            setColor(storeColor);
+        } else if(param.progress < .5f) {
+            setColor(green);
+        } else if(param.progress < .7f) {
+            setColor(storeColor);
+        } else if(param.progress < .9f) {
+            setColor(green);
+        }
+
+        if (param.progress >= .99f) {
+            setColor(storeColor);
+            espNowInputEnable = true;
+        }
+    };
+
+    animations.StartAnimation(0, 100, animUpdate);
+}
+
 void handle_command_set_default_color(const lightcontrol_espnow_data_t &command) {
-#ifdef UART_DEBUG
-    Serial.println("command set_default_color");
-#endif
     if (command.payload[0] == 0x01) {
-        prefs.putUChar(PREF_KEY_DEFAULT_R, currentSetColor.R);
-        prefs.putUChar(PREF_KEY_DEFAULT_G, currentSetColor.G);
-        prefs.putUChar(PREF_KEY_DEFAULT_B, currentSetColor.B);
-
-        espNowInputEnable = false;
-        const RgbColor storeColor = currentSetColor;
-
-        AnimUpdateCallback animUpdate = [=](const AnimationParam &param) {
-            if(param.progress < .1f) {
-                setColor(green);
-            } else if(param.progress < .3f) {
-                setColor(storeColor);
-            } else if(param.progress < .5f) {
-                setColor(green);
-            } else if(param.progress < .7f) {
-                setColor(storeColor);
-            } else if(param.progress < .9f) {
-                setColor(green);
-            }
-
-            if (param.progress >= .99f) {
-                setColor(storeColor);
-                espNowInputEnable = true;
-            }
-        };
-
-        animations.StartAnimation(0, 100, animUpdate);
+        save_color_and_show_animation();
     }
-
 }
 
 /**
@@ -462,14 +439,12 @@ void normalBoot() {
         }
 
         setColor(black);
-
         Serial.printf("my uid: %d\n", uid);
     } else {
         uid = askNumber("uid", &red);
         prefs.putUShort(PREF_KEY_UID, uid);
         Serial.printf("my new uid: %d\n", uid);
     }
-
 
     WiFi.disconnect();
     WiFi.mode(WIFI_STA);

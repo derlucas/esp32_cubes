@@ -9,7 +9,7 @@
 #include "esp_eth.h"
 
 #define LOG_LOCAL_LEVEL  3
-#define DEVICE_COUNT_DEFAULT 51
+#define DEVICE_COUNT_DEFAULT 50
 
 #include <esp_log.h>
 #include "ethernet.h"
