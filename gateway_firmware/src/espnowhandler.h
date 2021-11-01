@@ -36,7 +36,7 @@ private:
         uint8_t payload[4];
     } lightcontrol_espnow_data_t;
 
-    static lightcontrol_espnow_data_t *espnow_data;
+    static lightcontrol_espnow_data_t espnow_data;
 
     static uint8_t broadcast_mac[ESP_NOW_ETH_ALEN];
 
