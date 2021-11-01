@@ -12,9 +12,6 @@ This Project consists of the following parts:
  * Processing.Org Control Software (../processing/)
  * ESP32 for the Lights (../firmware/) 
  
- 
-The Projects supports "mhetesp32minikit" ESP32 boards which are also known
-as "Wemos ESP32".
 
 For information about the protocol used with ESP-NOW in the project, please see the
 File "PROTOCOL.md" one folder up.
@@ -22,7 +19,7 @@ File "PROTOCOL.md" one folder up.
 
 ## Control via Computer (USB-Serial)
 
-Connect the ESP32 via USB to you computer and send the following command String
+Connect the Gateway-ESP32 via USB to you computer and send the following command String
 to the ESP with a refresh rate of max. 50Hz
 
 Serial Settings: 115200 Baud, 8N1
@@ -93,11 +90,35 @@ gateway = new Serial(this, "/dev/ttyUSB0", 115200);
 gateway.write("C,31" + 'X');
 ```    
 
-## Control via Art-Net (To be Done)
+## Control via Art-Net
 
-This will be eventually in development some time in the future.
+The project supports the Olimex ESP32-Gateway (and with minor changes many other) Board.
+
+Upload the Ethernet Firmware variant:
+
+    pio run -e esp32-gateway -t upload
+
+The device will get an IP via DHCP and listens on Art-Net Universe 5.
+
+DMX configuration (Fixture Definition):
+Channel 1: red, Channel 2: green, Channel 3: blue, Channel 4: control
 
 
-https://community.platformio.org/t/esp-prog-openocd-path-contains-undefined/23799/17
+| DMX Channel | Cube UID | Function    |
+|-------------|----------|-------------|
+| 1           | 1        | red 0-255   |
+| 2           | 1        | green 0-255 |
+| 3           | 1        | blue 0-255  |
+| 4           | 1        | control     |
+| 5           | 2        | red 0-255   |
+| 6           | 2        | green 0-255 |
+| 7           | 2        | blue 0-255  |
+| 8           | 2        | control     |
+| ....        | ...      | ....        |
+| 121         | 31       | red 0-255   |
+| 122         | 31       | green 0-255 |
+| 123         | 31       | blue 0-255  |
+| 124         | 31       | control     |
+| ....        | ...      | ....        |
 
-
+The Gateway supports maximum 50 cubes and is configured to send the Data for 50. You can however use less without any change in code.
