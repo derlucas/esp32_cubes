@@ -13,7 +13,7 @@ static const char *TAG = "gw-ethernet";
 EventGroupHandle_t ethernet::eth_event_group = 0;
 const int ethernet::GOTIP_BIT = BIT0;
 uint8_t ethernet::deviceCount = 10;
-
+static uint8_t dmxDataPrevious[DMX_SIZE];
 
 void ethernet::eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
     uint8_t mac_addr[6] = {0};
@@ -121,25 +121,29 @@ void ethernet::udp_server_task(void *pvParameters) {
                 } else if(opcode == ART_DMX) {  // received DMX Data
                     uint8_t *dmxData = artnet::get_dmx_data();
                     // each device has 4 DMX Channels
-                    // ESP protocol can only handle 254 channels, it is 1 based (first device is 1)
-                                    
-                    //ESP_LOGI(TAG, "deviceCount = %d", ethernet::deviceCount);
+                    // red, green, blue, control
 
-                    espnowhandler::send_color_broadcast(ethernet::deviceCount, dmxData);
-                    
-                    /*
-                    for(uint8_t d=0;d<ethernet::deviceCount;d++) {
-                        uint8_t id = d+1;                       
-                        uint8_t red      = dmxData[3 * d + 0];
-                        uint8_t green    = dmxData[3 * d + 1];
-                        uint8_t blue     = dmxData[3 * d + 2];
-                        //ESP_LOGI(TAG, "uid = %d   ft=%d, r=%d, g=%d, b=%d", id, fadeTime, red, green, blue);
-                        espnowhandler::send_color(id, 0, red, green, blue);
-                        vTaskDelay(0);
+                    bool differs = false;
+                    for(uint16_t i = 0; i < DMX_SIZE; i++) {
+                        if(dmxDataPrevious[i] != dmxData[i]) {
+                            differs = true;
+                            break;
+                        }
                     }
-                    */
-                }
+                    
+                    if(differs) {
+                        espnowhandler::send_color_broadcast(ethernet::deviceCount, dmxData);
+                        memcpy(dmxDataPrevious, dmxData, DMX_SIZE);
+                    } else {
+                        // throttle sending out data via ESP-NOW since DMX Values did not change
+                        static uint8_t backoff_counter = 0;
 
+                        if(++backoff_counter > 10) {
+                            backoff_counter = 0;
+                            espnowhandler::send_color_broadcast(ethernet::deviceCount, dmxData);
+                        }
+                    }
+                }
             }
         }
 
