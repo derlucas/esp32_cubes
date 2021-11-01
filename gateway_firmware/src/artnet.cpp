@@ -160,26 +160,3 @@ void artnet::init_poll_reply() {
 
     sprintf((char *)artnet::artpoll_reply_package.nodereport, "%i DMX output universes active.", artnet::artpoll_reply_package.numPortsLo);
 }
-
-//void artnet::printPacketHeader()
-//{
-//    Serial.print("packet size = ");
-//    Serial.print(packetSize);
-//    Serial.print("\topcode = ");
-//    Serial.print(opcode, HEX);
-//    Serial.print("\tuniverse number = ");
-//    Serial.print(incomingUniverse);
-//    Serial.print("\tdata length = ");
-//    Serial.print(dmxDataLength);
-//    Serial.print("\tsequence n0. = ");
-//    Serial.println(sequence);
-//}
-//
-//void artnet::printPacketContent()
-//{
-//    for (uint16_t i = ART_DMX_START ; i < dmxDataLength ; i++){
-//        Serial.print(artnetPacket[i], DEC);
-//        Serial.print("  ");
-//    }
-//    Serial.println('\n');
-//}
