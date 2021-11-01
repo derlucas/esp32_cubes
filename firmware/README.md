@@ -9,7 +9,7 @@ which are Battery powered. They were retro-fitted with ESP32 Modules.
 This Project consists of the following parts:
 
  * ESP32 as Gateway (../gateway_firmware/)
- * Processing.Org Control Software (../processing/)
+ * Processing.Org Control Software (../processing/) (obsolete, now Art-Net is the new control style)
  * ESP32 for the Lights (this project folder) 
  
 The Projects supports "mhetesp32minikit" and "esp32doit-devkit-v1" ESP32 boards.
@@ -49,16 +49,26 @@ connect to this network, it will enter a OTA Mode (Over The Air update).
 It will print its IPv4 Address on the Serial console. You can now use the PlatformIO
 or Arduino OTA function to Upload a new Firmware.
 
-It the OTA WiFi was not found, a normal Boot will continue.
+If the OTA WiFi was not found, a normal Boot will continue.
 Before trying the OTA WiFi the LED will display yellow. When connected to OTA WiFi
-the LEDs will be flashing blue. The Device will wait 10 Seconds to have a OTA.
-After that time, it will continue to boot normal.
+the LEDs will be flashing blue. The Device will wait 10 Seconds to have an OTA.
+After that time, it will continue to boot normal. Boot complete is indicated with a
+rainbow color effect.
+
+ - set up the OTA wifi with DHCP server
+ - monitor your router/DHCP Server for new leases
+ - run
+ 
+   pio run -e esp32doit_pwm_ota -t upload --upload-port 192.168.7.66
+   
+   within 10 seconds (blinking blue)
+
 
 ## the Uniqe ID
 
 When first powered on after flashing the Firmware, connect via Serial Monitor.
-You will be prompted to enter the Light id "uid". Enter a value between 0 and
-254 (the Processing Software will use 1 to 50) to give your light a uniqe ID.
+You will be prompted to enter the Light id "uid". Enter a value between 1 and
+50 (the Processing Software will use 1 to 50) to give your light a uniqe ID.
 From now on, you can press "c" on the Serial console at boot to remove the UID
 and enter a new one.
 

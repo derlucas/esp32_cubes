@@ -5,7 +5,7 @@ This repository contains the software to control LED lights wirelessly via ESP-N
 It is using:
 
  * a Processing GUI for control
- * a ESP32 as USB-Serial-ESP-NOW Gateway
+ * a ESP32 as USB-Serial-ESP-NOW Gateway (and Art-Net option)
  * n ESP32 as ESP-NOW-to-LED controller
 
 
