@@ -24,22 +24,18 @@
 static const char *TAG = "gateway-espnow";
 uint8_t espnowhandler::broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 uint32_t espnowhandler::commandcounter = 0;
-espnowhandler::lightcontrol_espnow_data_t *espnowhandler::espnow_data;
+espnowhandler::lightcontrol_espnow_data_t espnowhandler::espnow_data;
 EventGroupHandle_t espnowhandler::espnow_event_group = 0;
 const int espnowhandler::SEND_SUCCESS_BIT = BIT0;
-
-//xEventGroupClearBits(espnowhandler::espnow_event_group, SEND_SUCCESS_BIT);
-//xEventGroupSetBits(espnowhandler::espnow_event_group, SEND_SUCCESS_BIT);
-//xEventGroupWaitBits(espnowhandler::espnow_event_group, SEND_SUCCESS_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
 
 void espnowhandler::msg_send_cb(const uint8_t* mac, esp_now_send_status_t sendStatus) {
     xEventGroupSetBits(espnowhandler::espnow_event_group, SEND_SUCCESS_BIT);
     switch (sendStatus) {
         case ESP_NOW_SEND_SUCCESS:
-            ESP_LOGI(TAG, "esp send done status = success");
+            ESP_LOGD(TAG, "esp send done status = success");
             break;
         case ESP_NOW_SEND_FAIL:
-            ESP_LOGI(TAG, "esp send done status = fail");
+            ESP_LOGD(TAG, "esp send done status = fail");
             break;
         default:
         break;
@@ -60,23 +56,23 @@ esp_err_t espnowhandler::esp_now_send_wrapper(const uint8_t *peer_addr, const ui
  * @param blackout true for blackout, false for restore
  */
 void espnowhandler::send_blackout(bool blackout) {
-    memset(espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
-    espnow_data->uid = CUBE_ADDR_BCAST;
-    espnow_data->preamble = PREAMBLE;
-    espnow_data->command = COMMAND_BLACKOUT;
-    espnow_data->commandcounter = ++commandcounter;
-    espnow_data->payload[0] = (uint8_t)(blackout ? 0x01 : 0x00);
+    memset(&espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
+    espnow_data.uid = CUBE_ADDR_BCAST;
+    espnow_data.preamble = PREAMBLE;
+    espnow_data.command = COMMAND_BLACKOUT;
+    espnow_data.commandcounter = ++commandcounter;
+    espnow_data.payload[0] = (uint8_t)(blackout ? 0x01 : 0x00);
 
-    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
+    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) &espnow_data, sizeof(lightcontrol_espnow_data_t));
     //vTaskDelay(20 / portTICK_PERIOD_MS);
     
-    espnow_data->commandcounter = ++commandcounter;
-    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
+    espnow_data.commandcounter = ++commandcounter;
+    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) &espnow_data, sizeof(lightcontrol_espnow_data_t));
     //vTaskDelay(20 / portTICK_PERIOD_MS);
     
-    espnow_data->commandcounter = ++commandcounter;
-    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
-    ESP_LOGD(TAG, "send blackout %d\n", espnow_data->payload[0]);
+    espnow_data.commandcounter = ++commandcounter;
+    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) &espnow_data, sizeof(lightcontrol_espnow_data_t));
+    ESP_LOGD(TAG, "send blackout %d\n", espnow_data.payload[0]);
     
 }
 
@@ -90,28 +86,29 @@ void espnowhandler::send_blackout(bool blackout) {
  * @param blue      blue color from 0 to 255
  */
 void espnowhandler::send_color(uint8_t uid, uint8_t fadetime, uint8_t red, uint8_t green, uint8_t blue) {
-    memset(espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
-    espnow_data->uid = uid;
-    espnow_data->preamble = PREAMBLE;
-    espnow_data->command = COMMAND_COLOR;
-    espnow_data->commandcounter = ++commandcounter;
-    espnow_data->payload[0] = fadetime;
-    espnow_data->payload[1] = red;
-    espnow_data->payload[2] = green;
-    espnow_data->payload[3] = blue;
-    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
-    ESP_LOGD(TAG, "send color %d,%d,%d,%d\n", espnow_data->payload[0],espnow_data->payload[1],espnow_data->payload[2],espnow_data->payload[3]);
+    memset(&espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
+    espnow_data.uid = uid;
+    espnow_data.preamble = PREAMBLE;
+    espnow_data.command = COMMAND_COLOR;
+    espnow_data.commandcounter = ++commandcounter;
+    espnow_data.payload[0] = fadetime;
+    espnow_data.payload[1] = red;
+    espnow_data.payload[2] = green;
+    espnow_data.payload[3] = blue;
+    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) &espnow_data, sizeof(lightcontrol_espnow_data_t));
+    ESP_LOGD(TAG, "send color %d,%d,%d,%d\n", espnow_data.payload[0], espnow_data.payload[1],
+                                                espnow_data.payload[2], espnow_data.payload[3]);
 }
 
 void espnowhandler::send_default_color_command(uint8_t uid) {
-    memset(espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
-    espnow_data->uid = uid;
-    espnow_data->preamble = PREAMBLE;
-    espnow_data->command = COMMAND_DEF_COLOR;
-    espnow_data->commandcounter = ++commandcounter;
-    espnow_data->payload[0] = 1;
-    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) espnow_data, sizeof(lightcontrol_espnow_data_t));
-    ESP_LOGD(TAG, "send default color to uid %d\n", espnow_data->uid);
+    memset(&espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
+    espnow_data.uid = uid;
+    espnow_data.preamble = PREAMBLE;
+    espnow_data.command = COMMAND_DEF_COLOR;
+    espnow_data.commandcounter = ++commandcounter;
+    espnow_data.payload[0] = 1;
+    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) &espnow_data, sizeof(lightcontrol_espnow_data_t));
+    ESP_LOGD(TAG, "send default color to uid %d\n", espnow_data.uid);
 }
 
 esp_err_t espnowhandler::event_handler(void *ctx, system_event_t *event) {
@@ -146,19 +143,6 @@ esp_err_t espnowhandler::init() {
     ESP_LOGD(TAG, "espnow init...");
     wifi_init();
 
-    espnow_data = static_cast<lightcontrol_espnow_data_t *>(malloc(sizeof(lightcontrol_espnow_data_t)));
-    memset(espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
-    if (espnow_data == nullptr) {
-        ESP_LOGE(TAG, "Malloc send parameter fail");
-        esp_now_deinit();
-        return ESP_FAIL;
-    }
-    ESP_LOGD(TAG, "malloc ok");
-
-    espnow_data->preamble = PREAMBLE;
-    espnow_data->command = COMMAND_COLOR;
-
-    ESP_LOGD(TAG, "data set");
     ESP_ERROR_CHECK( esp_now_init() );
     ESP_LOGD(TAG, "esp now init ok");
 
@@ -181,7 +165,6 @@ esp_err_t espnowhandler::init() {
     espnow_event_group = xEventGroupCreate();
     xEventGroupSetBits(espnow_event_group, SEND_SUCCESS_BIT);
     esp_now_register_send_cb(msg_send_cb);
-    
 
     return ESP_OK;
 }
