@@ -106,22 +106,6 @@ void uart_task(void *arg) {
     vTaskDelete(nullptr);
 }
 
-/* void demo_task(void *arg) {
-    int uid = 255, fadetime = 0, red = 0, green = 0, blue = 0;
-
-    for (;;) {    
-        espnowhandler::send_color(uid, fadetime, red, green, blue);
-        //ESP_LOGI(TAG, "red = %d\n", red);
-        red++;
-        red %= 255;
-
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-    }
-
-    vTaskDelete(nullptr);
-} */
-
-
 void app_main() {
     nvs_flash_init();
 
@@ -154,9 +138,6 @@ void app_main() {
     uart_pattern_queue_reset(UART_NUM_0, 10);
 
     ESP_LOGI(TAG, "Initializing Gateway...\n");
-    nvs_flash_init();
-    
-    
 
     espnowhandler::init();    
     artnet::set_listen_universe(5);

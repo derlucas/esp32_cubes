@@ -39,12 +39,11 @@ uint16_t artnet::parse_udp_buffer(const char *buffer, int len, sockaddr_in *sour
     // buffer[13] = Physical
 
     if (opcode == ART_DMX) {
-
-        uint8_t sequence;
+        //uint8_t sequence;
         uint16_t incomingUniverse;
         uint16_t dmxDataLength;
 
-        sequence = buffer[12];
+        //sequence = buffer[12];
         incomingUniverse = buffer[14] | buffer[15] << 8;
         dmxDataLength = buffer[17] | buffer[16] << 8;
 
@@ -69,7 +68,7 @@ uint16_t artnet::parse_udp_buffer(const char *buffer, int len, sockaddr_in *sour
     } else if (opcode == ART_POLL) {
         //fill the reply struct, and then send it to the network's broadcast address
 
-        ESP_LOGI(TAG, "POLL from: %s", inet_ntoa(source->sin_addr.s_addr));
+        //ESP_LOGI(TAG, "POLL from: %s", inet_ntoa(source->sin_addr.s_addr));
         tcpip_adapter_ip_info_t ip;
         if(tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip) != ESP_OK) {
             ESP_LOGE(TAG, "error getting own IP");
@@ -124,8 +123,8 @@ void artnet::init_poll_reply() {
     memset(shortname, 0x00, sizeof(shortname));
     memset(longname, 0x00, sizeof(longname));
 
-    sprintf((char *)shortname, "artnet arduino");
-    sprintf((char *)longname, "Art-Net -> Arduino Bridge");
+    sprintf((char *)shortname, "ESP32-Cubes GW");
+    sprintf((char *)longname, "ESP-NOW Gateway for LED Cubes");
     memcpy(artnet::artpoll_reply_package.shortName, shortname, sizeof(shortname));
     memcpy(artnet::artpoll_reply_package.longName, longname, sizeof(longname));
 

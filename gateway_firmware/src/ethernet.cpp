@@ -126,13 +126,12 @@ void ethernet::udp_server_task(void *pvParameters) {
                     //ESP_LOGI(TAG, "deviceCount = %d", ethernet::deviceCount);
                     
                     for(uint8_t d=0;d<ethernet::deviceCount;d++) {
-                        uint8_t id = d+1;
-                        uint8_t fadeTime = dmxData[4 * d + 0];
-                        uint8_t red      = dmxData[4 * d + 1];
-                        uint8_t green    = dmxData[4 * d + 2];
-                        uint8_t blue     = dmxData[4 * d + 3];
+                        uint8_t id = d+1;                       
+                        uint8_t red      = dmxData[3 * d + 0];
+                        uint8_t green    = dmxData[3 * d + 1];
+                        uint8_t blue     = dmxData[3 * d + 2];
                         //ESP_LOGI(TAG, "uid = %d   ft=%d, r=%d, g=%d, b=%d", id, fadeTime, red, green, blue);
-                        espnowhandler::send_color(id, fadeTime, red, green, blue);
+                        espnowhandler::send_color(id, 0, red, green, blue);
                         vTaskDelay(0);
                     }
                 }
@@ -163,6 +162,8 @@ esp_err_t ethernet::init_ethernet(uint8_t deviceCount) {
     esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
     esp_netif_t *eth_netif = esp_netif_new(&cfg);
 
+    // Set default handlers to process TCP/IP stuffs
+    ESP_ERROR_CHECK(esp_eth_set_default_handlers(eth_netif));
 
     eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
     mac_config.smi_mdc_gpio_num = 23;
@@ -180,7 +181,7 @@ esp_err_t ethernet::init_ethernet(uint8_t deviceCount) {
     esp_eth_config_t config = ETH_DEFAULT_CONFIG(mac, phy);
     esp_eth_handle_t eth_handle = NULL;
 
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    vTaskDelay(100 / portTICK_PERIOD_MS);
 
     ret = esp_eth_driver_install(&config, &eth_handle);
 
@@ -191,7 +192,7 @@ esp_err_t ethernet::init_ethernet(uint8_t deviceCount) {
         /* attach Ethernet driver to TCP/IP stack */
         ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handle)));
         
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
 
         //ESP_ERROR_CHECK(tcpip_adapter_set_default_eth_handlers());
         ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &eth_event_handler, NULL));
