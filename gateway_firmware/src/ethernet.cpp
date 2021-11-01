@@ -124,7 +124,10 @@ void ethernet::udp_server_task(void *pvParameters) {
                     // ESP protocol can only handle 254 channels, it is 1 based (first device is 1)
                                     
                     //ESP_LOGI(TAG, "deviceCount = %d", ethernet::deviceCount);
+
+                    espnowhandler::send_color_broadcast(ethernet::deviceCount, dmxData);
                     
+                    /*
                     for(uint8_t d=0;d<ethernet::deviceCount;d++) {
                         uint8_t id = d+1;                       
                         uint8_t red      = dmxData[3 * d + 0];
@@ -134,6 +137,7 @@ void ethernet::udp_server_task(void *pvParameters) {
                         espnowhandler::send_color(id, 0, red, green, blue);
                         vTaskDelay(0);
                     }
+                    */
                 }
 
             }

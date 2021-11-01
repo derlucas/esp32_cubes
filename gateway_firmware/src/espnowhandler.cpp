@@ -14,13 +14,6 @@
 #include "esp_log.h"
 #include "espnowhandler.h"
 
-#define ESPNOW_CHANNEL   1
-#define PREAMBLE            0xAABB
-#define CUBE_ADDR_BCAST     0xff        // light broadcast address
-#define COMMAND_BLACKOUT    0x01
-#define COMMAND_COLOR       0x02
-#define COMMAND_DEF_COLOR   0x03
-
 static const char *TAG = "gateway-espnow";
 uint8_t espnowhandler::broadcast_mac[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 uint32_t espnowhandler::commandcounter = 0;
@@ -110,6 +103,28 @@ void espnowhandler::send_default_color_command(uint8_t uid) {
     esp_now_send_wrapper(broadcast_mac, (const uint8_t *) &espnow_data, sizeof(lightcontrol_espnow_data_t));
     ESP_LOGD(TAG, "send default color to uid %d\n", espnow_data.uid);
 }
+
+/**
+ * send color values via broadcast as big array
+ * 
+ * @param lightsCount       Number of lights to send data to. Maximum is 50
+ * @param fadeTimeRGBData   An Array with four bytes for each light: [fadeTime, red, green, blue]
+ */
+void espnowhandler::send_color_broadcast(uint16_t lightsCount, const uint8_t *fadeTimeRGBData) {
+    if(lightsCount > 50) return;
+
+    memset(&espnow_data, 0, sizeof(lightcontrol_espnow_data_t));
+    espnow_data.uid = CUBE_ADDR_BCAST;
+    espnow_data.preamble = PREAMBLE;
+    espnow_data.command = COMMAND_COLOR_BCAST;
+    espnow_data.commandcounter = ++commandcounter;
+
+    memcpy(espnow_data.payload, fadeTimeRGBData, lightsCount * 4);
+
+    esp_now_send_wrapper(broadcast_mac, (const uint8_t *) &espnow_data, sizeof(lightcontrol_espnow_data_t));
+    ESP_LOGD(TAG, "send bcast color to %d lights\n", lightsCount);
+}
+
 
 esp_err_t espnowhandler::event_handler(void *ctx, system_event_t *event) {
     switch(event->event_id) {

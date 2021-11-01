@@ -3,6 +3,14 @@
 
 #include "esp_now.h"
 
+#define ESPNOW_CHANNEL   1
+#define PREAMBLE            0xAABB
+#define CUBE_ADDR_BCAST     0xff        // light broadcast address
+#define COMMAND_BLACKOUT    0x01
+#define COMMAND_COLOR       0x02
+#define COMMAND_DEF_COLOR   0x03
+#define COMMAND_COLOR_BCAST 0x04
+
 class espnowhandler {
 
 public:
@@ -11,6 +19,8 @@ public:
     static void send_color(uint8_t uid, uint8_t fadetime, uint8_t red, uint8_t green, uint8_t blue);
 
     static void send_default_color_command(uint8_t uid);
+
+    static void send_color_broadcast(uint16_t lightsCount, const uint8_t *fadeTimeRGBData);
 
     static esp_err_t init();
 
@@ -33,7 +43,7 @@ private:
         uint32_t commandcounter;
         uint8_t command;
         uint8_t crc;
-        uint8_t payload[4];
+        uint8_t payload[4 * 50];
     } lightcontrol_espnow_data_t;
 
     static lightcontrol_espnow_data_t espnow_data;
