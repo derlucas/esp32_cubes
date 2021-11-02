@@ -72,3 +72,5 @@ You will be prompted to enter the Light id "uid". Enter a value between 1 and
 From now on, you can press "c" on the Serial console at boot to remove the UID
 and enter a new one.
 
+Each cube uses 4 Channels (R,G,B,Control) starting at Channel ( $UID - 1 ) * 4 + 1.
+
