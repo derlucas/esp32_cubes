@@ -308,13 +308,20 @@ void handle_command_color_broadcast(const lightcontrol_espnow_data_t &command) {
     uint8_t controlChannel = command.payload[buf_offset+3];
     RgbColor rgb = RgbColor(command.payload[buf_offset], command.payload[buf_offset+1], command.payload[buf_offset+2]);
 
+    static bool save_color_triggered=false;
+
     if(rgb != lastSetColor) {
         lastSetColor = rgb;     // store color to only execute command when the color differs from last update.
         animations.StopAll();
         setColor(rgb);
     }
     if(controlChannel >= 250) {
-        save_color_and_show_animation();
+        if (!save_color_triggered) {
+            save_color_and_show_animation();
+            save_color_triggered=true;
+        }
+    }else{
+        save_color_triggered=false;
     }
 }
 
@@ -357,8 +364,14 @@ void save_color_and_show_animation() {
 }
 
 void handle_command_set_default_color(const lightcontrol_espnow_data_t &command) {
+    static bool save_color_triggered=false;
     if (command.payload[0] == 0x01) {
-        save_color_and_show_animation();
+        if (!save_color_triggered) {
+            save_color_and_show_animation();
+            save_color_triggered=true;
+        }
+    }else{
+        save_color_triggered=false;
     }
 }
 
