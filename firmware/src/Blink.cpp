@@ -180,9 +180,23 @@ void setColor(RgbColor color) {
     strip.Show();
 #endif
 #ifdef USE_PWM
-    ledcWrite(1, gamma8[(uint8_t)((float)color.R * 0.9)]);
-    ledcWrite(2, gamma8[color.G]);
-    ledcWrite(3, gamma8[(uint8_t)((float)color.B * 0.9)]);
+    uint8_t _r = gamma8[(uint8_t)(color.R * 0.9)];
+    uint8_t _g = gamma8[(uint8_t)(color.G * 1.0)];
+    uint8_t _b = gamma8[(uint8_t)(color.B * 0.9)];
+    uint8_t _w = 0; //white will be minimum of r,g,b after gamma was applied (if enabled)
+
+    #ifdef USE_WHITE_LED
+        _w = min(_r,min(_g,_b));
+        _r-=_w;
+        _g-=_w;
+        _b-=_w;
+    #endif
+
+    ledcWrite(1, _r);
+    ledcWrite(2, _g);
+    ledcWrite(3, _b);
+    ledcWrite(4, _w);
+
 #endif
     currentSetColor = color;
 }
@@ -308,13 +322,20 @@ void handle_command_color_broadcast(const lightcontrol_espnow_data_t &command) {
     uint8_t controlChannel = command.payload[buf_offset+3];
     RgbColor rgb = RgbColor(command.payload[buf_offset], command.payload[buf_offset+1], command.payload[buf_offset+2]);
 
+    static bool save_color_triggered=false;
+
     if(rgb != lastSetColor) {
         lastSetColor = rgb;     // store color to only execute command when the color differs from last update.
         animations.StopAll();
         setColor(rgb);
     }
     if(controlChannel >= 250) {
-        save_color_and_show_animation();
+        if (!save_color_triggered) {
+            save_color_and_show_animation();
+            save_color_triggered=true;
+        }
+    }else{
+        save_color_triggered=false;
     }
 }
 
@@ -357,8 +378,14 @@ void save_color_and_show_animation() {
 }
 
 void handle_command_set_default_color(const lightcontrol_espnow_data_t &command) {
+    static bool save_color_triggered=false;
     if (command.payload[0] == 0x01) {
-        save_color_and_show_animation();
+        if (!save_color_triggered) {
+            save_color_and_show_animation();
+            save_color_triggered=true;
+        }
+    }else{
+        save_color_triggered=false;
     }
 }
 
