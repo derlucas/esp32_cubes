@@ -180,9 +180,23 @@ void setColor(RgbColor color) {
     strip.Show();
 #endif
 #ifdef USE_PWM
-    ledcWrite(1, gamma8[(uint8_t)((float)color.R * 0.9)]);
-    ledcWrite(2, gamma8[color.G]);
-    ledcWrite(3, gamma8[(uint8_t)((float)color.B * 0.9)]);
+    uint8_t _r = gamma8[(uint8_t)(color.R * 0.9)];
+    uint8_t _g = gamma8[(uint8_t)(color.G * 1.0)];
+    uint8_t _b = gamma8[(uint8_t)(color.B * 0.9)];
+    uint8_t _w = 0; //white will be minimum of r,g,b after gamma was applied (if enabled)
+
+    #ifdef USE_WHITE_LED
+        _w = min(_r,min(_g,_b));
+        _r-=_w;
+        _g-=_w;
+        _b-=_w;
+    #endif
+
+    ledcWrite(1, _r);
+    ledcWrite(2, _g);
+    ledcWrite(3, _b);
+    ledcWrite(4, _w);
+
 #endif
     currentSetColor = color;
 }
